@@ -35,6 +35,15 @@ title: Welcome to my blog
         button:hover {
             background-color: #45a049;
         }
+
+        .clear-button {
+            background-color: #f44336;
+            margin-left: 10px;
+        }
+
+        .clear-button:hover {
+            background-color: #d32f2f;
+        }
     </style>
 </head>
 <body>
@@ -43,6 +52,7 @@ title: Welcome to my blog
     <input type="text" id="numberInput" placeholder="Paste your numbers here">
     <br>
     <button onclick="processNumbers()">Submit</button>
+    <button class="clear-button" onclick="clearInput()">Clear</button>
 
     <div id="output" style="margin-top: 20px; font-size: 18px;"></div>
 
@@ -59,6 +69,15 @@ title: Welcome to my blog
             } else {
                 outputDiv.textContent = 'Please enter some numbers.';
             }
+        }
+
+        function clearInput() {
+            const inputBox = document.getElementById('numberInput');
+            const outputDiv = document.getElementById('output');
+
+            // Clear the input box and output div
+            inputBox.value = '';
+            outputDiv.textContent = '';
         }
     </script>
 </body>
