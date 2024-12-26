@@ -1,7 +1,6 @@
 ---
 title: Welcome to my blog
 ---
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -15,10 +14,16 @@ title: Welcome to my blog
             margin: 50px;
         }
 
+        .input-section {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin: 20px 0;
+        }
+
         input[type="text"] {
-            width: 300px;
+            width: 200px;
             padding: 10px;
-            margin: 10px 0;
             font-size: 16px;
         }
 
@@ -48,18 +53,30 @@ title: Welcome to my blog
 </head>
 <body>
     <h1>Enter Numbers</h1>
-    <p>Paste numbers in the box below and click "Submit" to process.</p>
-    <input type="text" id="numberInput" placeholder="Paste your numbers here">
-    <br>
-    <button onclick="processNumbers()">Submit</button>
-    <button class="clear-button" onclick="clearInput()">Clear</button>
+    <p>Paste numbers in the boxes below and click "Submit" to process.</p>
 
-    <div id="output" style="margin-top: 20px; font-size: 18px;"></div>
+    <div class="input-section">
+        <div>
+            <input type="text" id="numberInput1" placeholder="Input 1">
+            <br>
+            <button onclick="processNumbers('numberInput1', 'output1')">Submit</button>
+            <button class="clear-button" onclick="clearInput('numberInput1', 'output1')">Clear</button>
+        </div>
+        <div>
+            <input type="text" id="numberInput2" placeholder="Input 2">
+            <br>
+            <button onclick="processNumbers('numberInput2', 'output2')">Submit</button>
+            <button class="clear-button" onclick="clearInput('numberInput2', 'output2')">Clear</button>
+        </div>
+    </div>
+
+    <div id="output1" style="margin-top: 20px; font-size: 18px;"></div>
+    <div id="output2" style="margin-top: 20px; font-size: 18px;"></div>
 
     <script>
-        function processNumbers() {
-            const inputBox = document.getElementById('numberInput');
-            const outputDiv = document.getElementById('output');
+        function processNumbers(inputId, outputId) {
+            const inputBox = document.getElementById(inputId);
+            const outputDiv = document.getElementById(outputId);
 
             // Get the input value
             const numbers = inputBox.value.trim();
@@ -71,9 +88,9 @@ title: Welcome to my blog
             }
         }
 
-        function clearInput() {
-            const inputBox = document.getElementById('numberInput');
-            const outputDiv = document.getElementById('output');
+        function clearInput(inputId, outputId) {
+            const inputBox = document.getElementById(inputId);
+            const outputDiv = document.getElementById(outputId);
 
             // Clear the input box and output div
             inputBox.value = '';
