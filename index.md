@@ -6,7 +6,7 @@ title: Welcome to my blog
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Number Input Website</title>
+    <title>Number Input with Chart</title> 
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -49,52 +49,105 @@ title: Welcome to my blog
         .clear-button:hover {
             background-color: #d32f2f;
         }
+
+        #chart-container {
+            margin-top: 50px;
+        }
+
+        canvas {
+            max-width: 600px;
+            margin: 0 auto;
+        }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-    <h1>Enter Numbers</h1>
-    <p>Paste numbers in the boxes below and click "Submit" to process.</p>
+    <h1>Enter Numbers and Plot</h1>
+    <p>Paste numbers in the boxes below and click "Submit" to process and plot the graph.</p>
 
     <div class="input-section">
         <div>
-            <input type="text" id="numberInput1" placeholder="Input 1">
+            <input type="text" id="numberInput1" placeholder="Input 1 (comma-separated)">
             <br>
-            <button onclick="processNumbers('numberInput1', 'output1')">Submit</button>
+            <button onclick="plotGraph()">Plot</button>
             <button class="clear-button" onclick="clearInput('numberInput1', 'output1')">Clear</button>
-        </div>
-        <div>
-            <input type="text" id="numberInput2" placeholder="Input 2">
-            <br>
-            <button onclick="processNumbers('numberInput2', 'output2')">Submit</button>
-            <button class="clear-button" onclick="clearInput('numberInput2', 'output2')">Clear</button>
         </div>
     </div>
 
-    <div id="output1" style="margin-top: 20px; font-size: 18px;"></div>
-    <div id="output2" style="margin-top: 20px; font-size: 18px;"></div>
+    <div id="chart-container">
+        <canvas id="myChart"></canvas>
+    </div>
 
     <script>
-        function processNumbers(inputId, outputId) {
-            const inputBox = document.getElementById(inputId);
-            const outputDiv = document.getElementById(outputId);
+        let chart; // To store the Chart.js instance
 
-            // Get the input value
-            const numbers = inputBox.value.trim();
-
-            if (numbers) {
-                outputDiv.textContent = `You entered: ${numbers}`;
-            } else {
-                outputDiv.textContent = 'Please enter some numbers.';
+        function plotGraph() {
+            const inputBox = document.getElementById('numberInput1');
+            const inputValue = inputBox.value.trim();
+            if (!inputValue) {
+                alert('Please enter some numbers.');
+                return;
             }
+
+            // Parse input into an array of numbers
+            const numbers = inputValue.split(',').map(num => parseFloat(num.trim()));
+            if (numbers.some(isNaN)) {
+                alert('Please ensure all inputs are valid numbers.');
+                return;
+            }
+
+            // Generate labels for the graph (e.g., 1, 2, 3...)
+            const labels = numbers.map((_, index) => index + 1);
+
+            // Destroy the previous chart instance if it exists
+            if (chart) {
+                chart.destroy();
+            }
+
+            // Create the chart
+            const ctx = document.getElementById('myChart').getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'line', // You can change this to 'bar', 'scatter', etc.
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Input Data',
+                        data: numbers,
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4, // Smooth the curve
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: true
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Index'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Value'
+                            }
+                        }
+                    }
+                }
+            });
         }
 
         function clearInput(inputId, outputId) {
             const inputBox = document.getElementById(inputId);
-            const outputDiv = document.getElementById(outputId);
-
-            // Clear the input box and output div
             inputBox.value = '';
-            outputDiv.textContent = '';
         }
     </script>
 </body>
