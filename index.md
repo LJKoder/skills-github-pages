@@ -167,7 +167,7 @@
                             },
                             grid: {
                                 color: 'black',
-                                lineWidth: 0.5,
+                                lineWidth: 1,
                                 drawOnChartArea: false  // Ensures the grid lines are drawn on the chart area
                             },
                             ticks: {
@@ -190,6 +190,11 @@
                                     weight: 'bold'
                                 },
                             color: 'black'  // Set the color of the y axis title to black
+                            },
+                            grid: {
+                                color: 'black',
+                                lineWidth: 1,
+                                drawOnChartArea: false  // Ensures the grid lines are drawn on the chart area
                             },
                             ticks: {
                                 font: {
