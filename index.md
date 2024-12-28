@@ -47,14 +47,17 @@
             background-color: #d32f2f;
         }
 
-        #chart-container {
-            margin-top: 50px;
-        }
+#chart-container {
+    margin-top: 50px;
+    width: 100%;  /* Take up full width of the container */
+    height: 80vh; /* 80% of the viewport height */
+}
 
-        canvas {
-            max-width: 600px;
-            margin: 0 auto;
-        }
+canvas {
+    width: 100% !important;  /* Ensure it takes full width */
+    height: 100% !important; /* Ensure it takes full height */
+}
+
     </style>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
