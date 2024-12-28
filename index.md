@@ -184,7 +184,7 @@
                                     weight: 'bold'
                                 },
                             color: 'black'  // Set the color of the y axis title to black
-                            }
+                            },
                             ticks: {
                                 font: {
                                     family: 'Arial',
