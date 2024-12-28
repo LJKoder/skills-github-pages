@@ -47,17 +47,8 @@
             background-color: #d32f2f;
         }
 
-#chart-container {
-    margin-top: 50px;
-    width: 100%;  /* Take up full width of the container */
-    height: 80vh; /* 80% of the viewport height */
-}
 
-canvas {
-    width: 100% !important;  /* Ensure it takes full width */
-    height: 100% !important; /* Ensure it takes full height */
-}
-
+<canvas id="myChart" width="800" height="600"></canvas>
     </style>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -88,6 +79,12 @@ canvas {
         let chart; // To store the Chart.js instance
 
         function plotGraph() {
+    const canvas = document.getElementById('myChart');
+    const ctx = canvas.getContext('2d');
+
+    // Set the size dynamically based on window size or other parameters
+    canvas.width = window.innerWidth * 0.8;  // 80% of the window width
+    canvas.height = window.innerHeight * 0.6; // 60% of the window height
     const xInput = document.getElementById('xValues').value.trim();
     const yInput = document.getElementById('yValues').value.trim();
 
