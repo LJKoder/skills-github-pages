@@ -60,7 +60,7 @@
 </head>
 <body>
     <h1>Plot X and Y Data</h1>
-    <p>Enter X and Y values (tab-separated) to plot on the graph.</p>
+    <p>Enter X and Y values (tab or newline-separated) to plot on the graph.</p>
 
     <div class="input-section">
         <div>
@@ -85,17 +85,17 @@
         let chart; // To store the Chart.js instance
 
         function plotGraph() {
-
-            const xValues = xInput.split(/[\t\n]+/).map(val => parseFloat(val.trim()));
-            const yValues = yInput.split(/[\t\n]+/).map(val => parseFloat(val.trim()));
+            const xInput = document.getElementById('xValues').value.trim();
+            const yInput = document.getElementById('yValues').value.trim();
 
             if (!xInput || !yInput) {
                 alert('Please enter both X and Y values.');
                 return;
             }
 
-            const xValues = xInput.split(/[\t\n]+/).map(val => parseFloat(val.trim()));
-            const yValues = yInput.split(/[\t\n]+/).map(val => parseFloat(val.trim()));
+            // Split by tabs or newlines to handle multiline Excel input
+            const xValues = xInput.split(/\s+/).map(val => parseFloat(val.trim()));
+            const yValues = yInput.split(/\s+/).map(val => parseFloat(val.trim()));
 
             if (xValues.some(isNaN) || yValues.some(isNaN)) {
                 alert('Please ensure all inputs are valid numbers.');
