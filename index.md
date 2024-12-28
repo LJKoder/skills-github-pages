@@ -142,7 +142,7 @@ datasets: [{
                     aspectRatio: 2, // Maintains a 2:1 width-to-height ratio
                     plugins: {
                         legend: {
-                            display: true,
+                            display: false,
                             position: 'top',
                             labels: {
                                 font: {
