@@ -134,6 +134,7 @@ canvas {
         },
         options: {
             responsive: true,
+            aspectRatio: 2, // Maintains a 2:1 width-to-height ratio
             plugins: {
                 legend: {
                     display: true,
