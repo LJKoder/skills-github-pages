@@ -60,7 +60,7 @@
 </head>
 <body>
     <h1>Plot X and Y Data</h1>
-    <p>Enter X and Y values (comma-separated) to plot on the graph.</p>
+    <p>Enter X and Y values (tab-separated) to plot on the graph.</p>
 
     <div class="input-section">
         <div>
@@ -93,8 +93,8 @@
                 return;
             }
 
-            const xValues = xInput.split(',').map(val => parseFloat(val.trim()));
-            const yValues = yInput.split(',').map(val => parseFloat(val.trim()));
+            const xValues = xInput.split('\t').map(val => parseFloat(val.trim()));
+            const yValues = yInput.split('\t').map(val => parseFloat(val.trim()));
 
             if (xValues.some(isNaN) || yValues.some(isNaN)) {
                 alert('Please ensure all inputs are valid numbers.');
