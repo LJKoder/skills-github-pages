@@ -131,7 +131,7 @@ datasets: [{
     borderWidth: 2,
     showLine: true,
     tension: 0.3,
-    pointStyle: 'cross',  // Change this to 'cross' to make data points appear as Xs
+    pointStyle: 'crossRot',  // Change this to 'cross' to make data points appear as Xs
     pointBorderColor: 'black',  // Set border color to black for the cross
     pointBackgroundColor: 'transparent',  // Make the inside of the cross transparent
     pointRadius: 5  // Size of the cross
