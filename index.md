@@ -1,12 +1,9 @@
----
-title: Welcome to my blog
----
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Number Input with Chart</title> 
+    <title>Plot X and Y Data</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -62,17 +59,23 @@ title: Welcome to my blog
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-    <h1>Enter Numbers and Plot</h1>
-    <p>Paste numbers in the boxes below and click "Submit" to process and plot the graph.</p>
+    <h1>Plot X and Y Data</h1>
+    <p>Enter X and Y values (comma-separated) to plot on the graph.</p>
 
     <div class="input-section">
         <div>
-            <input type="text" id="numberInput1" placeholder="Input 1 (comma-separated)">
+            <input type="text" id="xValues" placeholder="X Values">
             <br>
-            <button onclick="plotGraph()">Plot</button>
-            <button class="clear-button" onclick="clearInput('numberInput1', 'output1')">Clear</button>
+            <button class="clear-button" onclick="clearInput('xValues')">Clear</button>
+        </div>
+        <div>
+            <input type="text" id="yValues" placeholder="Y Values">
+            <br>
+            <button class="clear-button" onclick="clearInput('yValues')">Clear</button>
         </div>
     </div>
+
+    <button onclick="plotGraph()">Plot</button>
 
     <div id="chart-container">
         <canvas id="myChart"></canvas>
@@ -82,22 +85,26 @@ title: Welcome to my blog
         let chart; // To store the Chart.js instance
 
         function plotGraph() {
-            const inputBox = document.getElementById('numberInput1');
-            const inputValue = inputBox.value.trim();
-            if (!inputValue) {
-                alert('Please enter some numbers.');
+            const xInput = document.getElementById('xValues').value.trim();
+            const yInput = document.getElementById('yValues').value.trim();
+
+            if (!xInput || !yInput) {
+                alert('Please enter both X and Y values.');
                 return;
             }
 
-            // Parse input into an array of numbers
-            const numbers = inputValue.split(',').map(num => parseFloat(num.trim()));
-            if (numbers.some(isNaN)) {
+            const xValues = xInput.split(',').map(val => parseFloat(val.trim()));
+            const yValues = yInput.split(',').map(val => parseFloat(val.trim()));
+
+            if (xValues.some(isNaN) || yValues.some(isNaN)) {
                 alert('Please ensure all inputs are valid numbers.');
                 return;
             }
 
-            // Generate labels for the graph (e.g., 1, 2, 3...)
-            const labels = numbers.map((_, index) => index + 1);
+            if (xValues.length !== yValues.length) {
+                alert('X and Y values must have the same length.');
+                return;
+            }
 
             // Destroy the previous chart instance if it exists
             if (chart) {
@@ -107,17 +114,16 @@ title: Welcome to my blog
             // Create the chart
             const ctx = document.getElementById('myChart').getContext('2d');
             chart = new Chart(ctx, {
-                type: 'line', // You can change this to 'bar', 'scatter', etc.
+                type: 'scatter',
                 data: {
-                    labels: labels,
                     datasets: [{
-                        label: 'Input Data',
-                        data: numbers,
+                        label: 'X vs Y Plot',
+                        data: xValues.map((x, i) => ({ x: x, y: yValues[i] })),
                         borderColor: 'rgba(75, 192, 192, 1)',
                         backgroundColor: 'rgba(75, 192, 192, 0.2)',
                         borderWidth: 2,
-                        fill: true,
-                        tension: 0.4, // Smooth the curve
+                        showLine: true, // Connect points with a line
+                        tension: 0.4 // Smooth the line
                     }]
                 },
                 options: {
@@ -131,13 +137,13 @@ title: Welcome to my blog
                         x: {
                             title: {
                                 display: true,
-                                text: 'Index'
+                                text: 'X Values'
                             }
                         },
                         y: {
                             title: {
                                 display: true,
-                                text: 'Value'
+                                text: 'Y Values'
                             }
                         }
                     }
@@ -145,7 +151,7 @@ title: Welcome to my blog
             });
         }
 
-        function clearInput(inputId, outputId) {
+        function clearInput(inputId) {
             const inputBox = document.getElementById(inputId);
             inputBox.value = '';
         }
