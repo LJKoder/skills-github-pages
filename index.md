@@ -184,11 +184,7 @@
                                     weight: 'bold'
                                 },
                             color: 'black'  // Set the color of the y axis title to black
-                            },
-                            grid: {
-                                color: 'rgba(200, 200, 200, 0.5)',
-                                lineWidth: 0.5
-                            },
+                            }
                             ticks: {
                                 font: {
                                     family: 'Arial',
