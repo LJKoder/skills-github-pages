@@ -182,7 +182,8 @@
                                     family: 'Arial',
                                     size: 16,
                                     weight: 'bold'
-                                }
+                                },
+                            color: 'black'  // Set the color of the y axis title to black
                             },
                             grid: {
                                 color: 'rgba(200, 200, 200, 0.5)',
@@ -193,7 +194,7 @@
                                     family: 'Arial',
                                     size: 12
                                 },
-                                color: 'rgba(0, 0, 0, 0.7)'
+                                color: 'rgba(255,255,255,1)'
                             }
                         }
                     },
