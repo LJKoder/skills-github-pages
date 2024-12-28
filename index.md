@@ -174,7 +174,9 @@ datasets: [{
                                     family: 'Arial',
                                     size: 12
                                 },
-                                color: 'black'
+            color: 'black',
+            padding: 10, // Adjusts the distance between the ticks and the axis
+            beginAtZero: true
                             }
                         },
                         y: {
