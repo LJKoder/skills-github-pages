@@ -112,44 +112,93 @@
                 chart.destroy();
             }
 
-            // Create the chart
-            const ctx = document.getElementById('myChart').getContext('2d');
-            chart = new Chart(ctx, {
-                type: 'scatter',
-                data: {
-                    datasets: [{
-                        label: 'X vs Y Plot',
-                        data: xValues.map((x, i) => ({ x: x, y: yValues[i] })),
-                        borderColor: 'rgba(75, 192, 192, 1)',
-                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                        borderWidth: 2,
-                        showLine: true, // Connect points with a line
-                        tension: 0.4 // Smooth the line
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: {
-                            display: true
-                        }
-                    },
-                    scales: {
-                        x: {
-                            title: {
-                                display: true,
-                                text: 'X Values'
-                            }
-                        },
-                        y: {
-                            title: {
-                                display: true,
-                                text: 'Y Values'
-                            }
-                        }
+chart = new Chart(ctx, {
+    type: 'scatter',
+    data: {
+        datasets: [{
+            label: 'X vs Y Plot',
+            data: xValues.map((x, i) => ({ x: x, y: yValues[i] })),
+            borderColor: 'rgba(54, 162, 235, 1)',  // More neutral color
+            backgroundColor: 'rgba(54, 162, 235, 0.2)',  // Slightly muted background
+            borderWidth: 2,
+            showLine: true, // Connect points with a line
+            tension: 0.3 // A slight curve for the line
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                display: true,
+                position: 'top',  // Legend at the top for a cleaner look
+                labels: {
+                    font: {
+                        family: 'Arial',  // Use a cleaner, scientific font
+                        size: 14,  // Adjust the font size for clarity
+                        weight: 'bold'  // Make the font a bit bolder for readability
                     }
                 }
-            });
+            }
+        },
+        scales: {
+            x: {
+                title: {
+                    display: true,
+                    text: 'X Values',
+                    font: {
+                        family: 'Arial',
+                        size: 16,  // Slightly larger title
+                        weight: 'bold'
+                    },
+                },
+                grid: {
+                    color: 'rgba(200, 200, 200, 0.5)',  // Lighter gridlines
+                    lineWidth: 0.5  // Thinner gridlines for a less distracting effect
+                },
+                ticks: {
+                    font: {
+                        family: 'Arial',
+                        size: 12
+                    },
+                    color: 'rgba(0, 0, 0, 0.7)'  // Darker tick marks for visibility
+                }
+            },
+            y: {
+                title: {
+                    display: true,
+                    text: 'Y Values',
+                    font: {
+                        family: 'Arial',
+                        size: 16,
+                        weight: 'bold'
+                    },
+                },
+                grid: {
+                    color: 'rgba(200, 200, 200, 0.5)',
+                    lineWidth: 0.5
+                },
+                ticks: {
+                    font: {
+                        family: 'Arial',
+                        size: 12
+                    },
+                    color: 'rgba(0, 0, 0, 0.7)'
+                }
+            }
+        },
+        layout: {
+            padding: 20  // Add some padding for clarity
+        },
+        elements: {
+            point: {
+                radius: 5,  // Smaller point radius for a more professional look
+                hoverRadius: 7,  // Slightly larger on hover
+                borderWidth: 1  // Thin border around the points
+            }
+        },
+        backgroundColor: 'white'  // Clean, scientific background color
+    }
+});
         }
 
         function clearInput(inputId) {
