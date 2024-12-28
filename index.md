@@ -85,8 +85,9 @@
         let chart; // To store the Chart.js instance
 
         function plotGraph() {
-            const xInput = document.getElementById('xValues').value.trim();
-            const yInput = document.getElementById('yValues').value.trim();
+
+            const xValues = xInput.split(/[\t\n]+/).map(val => parseFloat(val.trim()));
+            const yValues = yInput.split(/[\t\n]+/).map(val => parseFloat(val.trim()));
 
             if (!xInput || !yInput) {
                 alert('Please enter both X and Y values.');
