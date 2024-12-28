@@ -125,7 +125,7 @@
                 type: 'scatter',
                 data: {
                     datasets: [{
-                        label: 'X vs Y Plot',
+                        
                         data: xValues.map((x, i) => ({ x: x, y: yValues[i] })),
                         borderColor: 'rgba(54, 162, 235, 1)',
                         backgroundColor: 'rgba(54, 162, 235, 0.2)',
@@ -171,7 +171,7 @@
                                     family: 'Arial',
                                     size: 12
                                 },
-                                color: 'rgba(0, 0, 0, 0.7)'
+                                color: 'black'
                             }
                         },
                         y: {
