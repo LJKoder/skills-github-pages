@@ -129,7 +129,7 @@ datasets: [{
     borderColor: 'rgba(54, 162, 235, 1)',
     backgroundColor: 'rgba(54, 162, 235, 0.2)',
     borderWidth: 2,
-    showLine: true,
+    showLine: false,
     tension: 0.3,
     pointStyle: 'crossRot',  // Change this to 'cross' to make data points appear as Xs
     pointBorderColor: 'black',  // Set border color to black for the cross
