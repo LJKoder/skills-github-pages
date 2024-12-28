@@ -159,7 +159,7 @@
                                     family: 'Arial',
                                     size: 16,
                                     weight: 'bold'
-                                }
+                                },
                             color: 'black'  // Set the color of the X axis title to black
                             },
                             grid: {
