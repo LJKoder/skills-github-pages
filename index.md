@@ -194,7 +194,7 @@
                                     family: 'Arial',
                                     size: 12
                                 },
-                                color: 'rgba(255,255,255,1)'
+                                color: 'black'
                             }
                         }
                     },
