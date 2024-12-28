@@ -94,8 +94,8 @@
                 return;
             }
 
-            const xValues = xInput.split('\t').map(val => parseFloat(val.trim()));
-            const yValues = yInput.split('\t').map(val => parseFloat(val.trim()));
+            const xValues = xInput.split(/[\t\n]+/).map(val => parseFloat(val.trim()));
+            const yValues = yInput.split(/[\t\n]+/).map(val => parseFloat(val.trim()));
 
             if (xValues.some(isNaN) || yValues.some(isNaN)) {
                 alert('Please ensure all inputs are valid numbers.');
