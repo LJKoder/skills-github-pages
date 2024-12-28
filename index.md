@@ -167,7 +167,7 @@ datasets: [{
                             },
                             grid: {
                                 color: 'rgba(200, 200, 200, 0.5)',
-                                lineWidth: 0.5
+                                lineWidth: 0.5,
                                 drawOnChartArea: true  // Ensures the grid lines are drawn on the chart area
                             },
                             ticks: {
