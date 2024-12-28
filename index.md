@@ -160,6 +160,7 @@
                                     size: 16,
                                     weight: 'bold'
                                 }
+                            color: 'black'  // Set the color of the X axis title to black
                             },
                             grid: {
                                 color: 'rgba(200, 200, 200, 0.5)',
