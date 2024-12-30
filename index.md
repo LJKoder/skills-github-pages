@@ -225,6 +225,54 @@
             const inputBox = document.getElementById(inputId);
             inputBox.value = '';
         }
+        function weightedLinearRegressionWithErrors(data, weights) {
+    const n = data.length;
+    if (n !== weights.length) {
+        throw new Error("Data points and weights must have the same length.");
+    }
+
+    const x = data.map(d => d[0]);
+    const y = data.map(d => d[1]);
+
+    // Compute weighted sums
+    const sum = (arr) => arr.reduce((a, b) => a + b, 0);
+    const sumw = sum(weights);
+    const sumwx = sum(x.map((val, i) => weights[i] * val));
+    const sumwy = sum(y.map((val, i) => weights[i] * val));
+    const sumwxy = sum(x.map((val, i) => weights[i] * val * y[i]));
+    const sumwx2 = sum(x.map((val, i) => weights[i] * val * val));
+
+    // Compute means
+    const xbar = sumwx / sumw;
+    const ybar = sumwy / sumw;
+
+    // Compute coefficients
+    const beta1 = (sumwxy - sumwx * ybar) / (sumwx2 - sumwx * xbar);
+    const beta0 = ybar - beta1 * xbar;
+
+    console.log(`Weighted regression line: y = ${beta1} * x + ${beta0}`);
+
+    // Analyze results
+    let rss = 0, xxbar = 0;
+    for (let i = 0; i < n; i++) {
+        const fit = beta1 * x[i] + beta0;
+        rss += weights[i] * (y[i] - fit) ** 2; // Residual sum of squares
+        xxbar += weights[i] * (x[i] - xbar) ** 2; // Weighted variance of x
+    }
+
+    const dfw = sumw - 2; // Weighted degrees of freedom
+    const svar = rss / dfw;
+    const svar1 = svar / xxbar; // Variance of beta1
+    const svar0 = svar * sumwx2 / (sumw * xxbar); // Variance of beta0
+
+    console.log(`Standard error of beta1 = ${Math.sqrt(svar1)}`);
+    console.log(`Standard error of beta0 = ${Math.sqrt(svar0)}`);
+
+    // Metrics
+    console.log(`Residual sum of squares (RSS) = ${rss}`);
+    console.log(`Weighted degrees of freedom (dfw) = ${dfw}`);
+}
+
     </script>
 </body>
 </html>
