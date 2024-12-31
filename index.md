@@ -119,17 +119,18 @@
             chart = new Chart(ctx, {
                 type: 'scatter',
                 data: {
-                    datasets: [
-                        {
-                            data: xValues.map((x, i) => ({ x: x, y: yValues[i] })),
-                            borderColor: 'rgba(54, 162, 235, 1)',
-                            backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                            borderWidth: 2,
-                            showLine: false,
-                            pointStyle: 'circle',
-                            pointRadius: 5,
-                        },
-                    ],
+                    datasets: [{
+                        data: xValues.map((x, i) => ({ x: x, y: yValues[i] })),
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                        borderWidth: 2,
+                        showLine: false,
+                        tension: 0.3,
+                        pointStyle: 'crossRot',  // Change this to 'cross' to make data points appear as Xs
+                        pointBorderColor: 'black',  // Set border color to black for the cross
+                        pointBackgroundColor: 'transparent',  // Make the inside of the cross transparent
+                        pointRadius: 5  // Size of the cross
+                    }]
                 },
                 options: {
                     responsive: true,
