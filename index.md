@@ -193,6 +193,30 @@
                 fill: false,
                 tension: 0,
             });
+            // Add regression equation to the chart
+            chart.options.plugins = {
+                ...chart.options.plugins,
+                annotation: {
+                    annotations: {
+                        regressionLabel: {
+                            type: 'label',
+                            xValue: maxX,
+                            yValue: beta1 * maxX + beta0,
+                            backgroundColor: 'rgba(0,0,0,0.5)',
+                            content: `y = ${beta1.toFixed(2)}x + ${beta0.toFixed(2)}`,
+                            font: {
+                                size: 14,
+                                family: 'Arial',
+                                weight: 'bold',
+                            },
+                            color: 'white',
+                            textAlign: 'center',
+                            xAdjust: -100,
+                            yAdjust: 20,
+                        }
+                    }
+                }
+        };
 
             chart.update();
         }
