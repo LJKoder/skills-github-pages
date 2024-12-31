@@ -202,12 +202,12 @@ Chart.register({
 
         // Calculate position for the text
         const x = chartArea.right - 150; // Adjust the x position
-        const y = chartArea.top + 30;   // Adjust the y position
+        const y = (chartArea.top + chartArea.bottom) / 2   // Adjust the y position
 
         ctx.save();
         ctx.fillStyle = 'black'; // Text color
         ctx.font = '16px Arial';
-        ctx.fillText(`y = ${beta1.toFixed(2)}x + ${beta0.toFixed(2)}`, x, y);
+        ctx.fillText(`y = ${beta1.toExponential(3)}x + ${beta0.toExponential(3)}`, x, y);
         ctx.restore();
     }
 });
