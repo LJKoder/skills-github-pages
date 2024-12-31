@@ -193,32 +193,38 @@
                 fill: false,
                 tension: 0,
             });
-            // Add regression equation to the chart
-            chart.options.plugins = {
-                ...chart.options.plugins,
-                annotation: {
-                    annotations: {
-                        regressionLabel: {
-                            type: 'label',
-                            xValue: maxX,
-                            yValue: beta1 * maxX + beta0,
-                            backgroundColor: 'rgba(0,0,0,0.5)',
-                            content: `y = ${beta1.toFixed(2)}x + ${beta0.toFixed(2)}`,
-                            font: {
-                                size: 14,
-                                family: 'Arial',
-                                weight: 'bold',
-                            },
-                            color: 'white',
-                            textAlign: 'center',
-                            xAdjust: -100,
-                            yAdjust: 20,
-                        }
-                    }
-                }
-        };
+// Add a custom plugin to display the regression equation
+Chart.register({
+    id: 'regressionEquation',
+    beforeDraw(chart) {
+        const ctx = chart.ctx;
+        const chartArea = chart.chartArea;
 
-            chart.update();
+        // Calculate position for the text
+        const x = chartArea.right - 150; // Adjust the x position
+        const y = chartArea.top + 30;   // Adjust the y position
+
+        ctx.save();
+        ctx.fillStyle = 'black'; // Text color
+        ctx.font = '16px Arial';
+        ctx.fillText(`y = ${beta1.toFixed(2)}x + ${beta0.toFixed(2)}`, x, y);
+        ctx.restore();
+    }
+});
+
+// Add regression line dataset
+chart.data.datasets.push({
+    label: 'Regression Line',
+    data: lineXValues.map((x, i) => ({ x: x, y: lineYValues[i] })),
+    borderColor: 'rgba(255, 99, 132, 1)',
+    borderWidth: 2,
+    showLine: true,
+    fill: false,
+    tension: 0,
+});
+
+// Update the chart
+chart.update();
         }
 
         function clearInput(inputId) {
