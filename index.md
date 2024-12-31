@@ -201,8 +201,8 @@ Chart.register({
         const chartArea = chart.chartArea;
 
         // Calculate position for the text
-        const x = chartArea.right - 150; // Adjust the x position
-        const y = (chartArea.top + chartArea.bottom) / 2   // Adjust the y position
+        const x = (chartArea.right + chartArea.left)/2; // Adjust the x position
+        const y = chartArea.top+(chartArea.top + chartArea.bottom) *4/ 5   // Adjust the y position
 
         ctx.save();
         ctx.fillStyle = 'black'; // Text color
