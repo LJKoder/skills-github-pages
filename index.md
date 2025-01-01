@@ -303,8 +303,18 @@ chart.update();
             // Adjust error mantissa to match the exponent of the value
             const adjustedError = errorMantissa * Math.pow(10, errorExponent - valueExponent);
         
-            // Format as (mantissa ± adjustedError)e{exponent}
-            return `(${valueMantissa.toFixed(3)} ± ${adjustedError.toFixed(3)})×10^${valueExponent}`;
+            // Convert the exponent to superscript
+                const superscriptExponent = valueExponent.toString().split('').map(char => {
+                    const superscripts = {
+                        '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
+                        '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹', '-': '⁻'
+                    };
+                    return superscripts[char];
+                }).join('');
+            
+                // Format as (mantissa ± adjustedError)×10^superscriptExponent
+                return `(${valueMantissa.toFixed(3)} ± ${adjustedError.toFixed(3)})×10${superscriptExponent}`;
+
         }
     </script>
 </body>
