@@ -201,7 +201,7 @@ Chart.register({
         const chartArea = chart.chartArea;
 
         // Calculate position for the text
-        const x = chartArea.left+(chartArea.left + chartArea.right) *3/ 4 ; // Adjust the x position
+        const x = chartArea.left+(chartArea.right - chartArea.left) *3/ 4 ; // Adjust the x position
         const y = chartArea.top+(chartArea.top + chartArea.bottom) *3/ 4 ;  // Adjust the y position
 
         ctx.save();
