@@ -201,8 +201,8 @@ Chart.register({
         const chartArea = chart.chartArea;
 
         // Calculate position for the text
-        const x = (chartArea.right + chartArea.left)/2; // Adjust the x position
-        const y = chartArea.top+(chartArea.top + chartArea.bottom) *2/ 3   // Adjust the y position
+        const x = chartArea.left+(chartArea.left + chartArea.right) *3/ 4 ; // Adjust the x position
+        const y = chartArea.top+(chartArea.top + chartArea.bottom) *3/ 4 ;  // Adjust the y position
 
         ctx.save();
         ctx.fillStyle = 'black'; // Text color
@@ -211,7 +211,7 @@ Chart.register({
         const beta1Formatted = formatWithError(beta1, seBeta1);
         const beta0Formatted = formatWithError(beta0, seBeta0);
 
-        ctx.fillText(`y = ${beta1Formatted}x + ${beta0Formatted}`, x, y);
+        ctx.fillText(`Y = ${beta1Formatted} X + ${beta0Formatted}`, x, y);
 
         ctx.restore();
     }
