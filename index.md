@@ -177,7 +177,7 @@
             const weights = Array(xValues.length).fill(1);
             const data = xValues.map((x, i) => [x, yValues[i]]);
 
-            const { beta0, beta1 } = weightedLinearRegressionWithErrors(data, weights);
+            const { beta0, beta1, seBeta0, seBeta1 } = weightedLinearRegressionWithErrors(data, weights);
 
             const minX = Math.min(...xValues);
             const maxX = Math.max(...xValues);
@@ -202,12 +202,13 @@ Chart.register({
 
         // Calculate position for the text
         const x = (chartArea.right + chartArea.left)/2; // Adjust the x position
-        const y = chartArea.top+(chartArea.top + chartArea.bottom) *1/ 3   // Adjust the y position
+        const y = chartArea.top+(chartArea.top + chartArea.bottom) *2/ 3   // Adjust the y position
 
         ctx.save();
         ctx.fillStyle = 'black'; // Text color
         ctx.font = '16px Arial';
-        ctx.fillText(`y = ${beta1.toExponential(3)}x + ${beta0.toExponential(3)}`, x, y);
+        ctx.fillText(`y = (${beta1.toExponential(3)} ± ${seBeta1.toExponential(3)})x + (${beta0.toExponential(3)} ± ${seBeta0.toExponential(3)})`, x, y);
+
         ctx.restore();
     }
 });
