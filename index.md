@@ -233,24 +233,57 @@ chart.update();
 
         function weightedLinearRegressionWithErrors(data, weights) {
             const n = data.length;
+            if (n !== weights.length) {
+                throw new Error("Data points and weights must have the same length.");
+            }
+        
             const x = data.map(d => d[0]);
             const y = data.map(d => d[1]);
-
+        
             const sum = arr => arr.reduce((a, b) => a + b, 0);
             const sumw = sum(weights);
             const sumwx = sum(x.map((val, i) => weights[i] * val));
             const sumwy = sum(y.map((val, i) => weights[i] * val));
             const sumwxy = sum(x.map((val, i) => weights[i] * val * y[i]));
             const sumwx2 = sum(x.map((val, i) => weights[i] * val * val));
-
+        
             const xbar = sumwx / sumw;
             const ybar = sumwy / sumw;
-
+        
+            // Coefficients
             const beta1 = (sumwxy - sumwx * ybar) / (sumwx2 - sumwx * xbar);
             const beta0 = ybar - beta1 * xbar;
-
-            return { beta0, beta1 };
+        
+            // Residual sum of squares (weighted RSS)
+            let rss = 0;
+            for (let i = 0; i < n; i++) {
+                const fit = beta1 * x[i] + beta0;
+                rss += weights[i] * Math.pow(y[i] - fit, 2);
+            }
+        
+            // Degrees of freedom (weighted)
+            const dfw = sumw - 2;
+        
+            // Variance of residuals
+            const svar = rss / dfw;
+        
+            // Variance of coefficients
+            const xxbar = sum(x.map((val, i) => weights[i] * Math.pow(val - xbar, 2)));
+            const svar1 = svar / xxbar; // Variance of beta1
+            const svar0 = svar * sumwx2 / (sumw * xxbar); // Variance of beta0
+        
+            // Standard errors
+            const seBeta1 = Math.sqrt(svar1);
+            const seBeta0 = Math.sqrt(svar0);
+        
+            return {
+                beta0,
+                beta1,
+                seBeta0,
+                seBeta1,
+            };
         }
+
     </script>
 </body>
 </html>
