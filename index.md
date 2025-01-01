@@ -304,7 +304,7 @@ chart.update();
             const adjustedError = errorMantissa * Math.pow(10, errorExponent - valueExponent);
         
             // Format as (mantissa ± adjustedError)e{exponent}
-            return `(${valueMantissa.toFixed(3)} ± ${adjustedError.toFixed(3)})e${valueExponent}`;
+            return `(${valueMantissa.toFixed(3)} ± ${adjustedError.toFixed(3)})×10^${valueExponent}`;
         }
     </script>
 </body>
