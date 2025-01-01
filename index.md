@@ -207,7 +207,11 @@ Chart.register({
         ctx.save();
         ctx.fillStyle = 'black'; // Text color
         ctx.font = '16px Arial';
-        ctx.fillText(`y = (${beta1.toExponential(3)} ± ${seBeta1.toExponential(3)})x + (${beta0.toExponential(3)} ± ${seBeta0.toExponential(3)})`, x, y);
+        // Format the equation with the new function
+        const beta1Formatted = formatWithError(beta1, seBeta1);
+        const beta0Formatted = formatWithError(beta0, seBeta0);
+
+        ctx.fillText(`y = ${beta1Formatted}x + ${beta0Formatted}`, x, y);
 
         ctx.restore();
     }
@@ -284,7 +288,23 @@ chart.update();
                 seBeta1,
             };
         }
-
+        function formatWithError(value, error) {
+            // Convert the value and error to exponential format
+            const valueParts = value.toExponential().split('e');
+            const errorParts = error.toExponential().split('e');
+        
+            // Extract the mantissa and exponent
+            const valueMantissa = parseFloat(valueParts[0]);
+            const valueExponent = parseInt(valueParts[1], 10);
+            const errorMantissa = parseFloat(errorParts[0]);
+            const errorExponent = parseInt(errorParts[1], 10);
+        
+            // Adjust error mantissa to match the exponent of the value
+            const adjustedError = errorMantissa * Math.pow(10, errorExponent - valueExponent);
+        
+            // Format as (mantissa ± adjustedError)e{exponent}
+            return `(${valueMantissa.toFixed(3)} ± ${adjustedError.toFixed(3)})e${valueExponent}`;
+        }
     </script>
 </body>
 </html>
