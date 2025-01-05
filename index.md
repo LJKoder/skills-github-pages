@@ -75,6 +75,16 @@
             <br>
             <button class="clear-button" onclick="clearInput('yValues')">Clear</button>
         </div>
+        <div>
+        <input type="text" id="xUncertainty" placeholder="X Uncertainty">
+        <br>
+        <button class="clear-button" onclick="clearInput('xUncertainty')">Clear</button>
+    </div>
+    <div>
+        <input type="text" id="yUncertainty" placeholder="Y Uncertainty">
+        <br>
+        <button class="clear-button" onclick="clearInput('yUncertainty')">Clear</button>
+    </div>
     </div>
 
     <button onclick="plotGraph()">Plot Data</button>
