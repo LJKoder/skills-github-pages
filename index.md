@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plot X and Y Data with Error Bars</title>
+    <title>Plot Data with Error Bars</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -39,7 +39,7 @@
     <!-- Chart.js Library -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Chart.js Error Bars Plugin -->
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-error-bars"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-error-bars"></script>
 </head>
 <body>
     <h1>Plot Data with Error Bars</h1>
@@ -73,11 +73,20 @@
                 backgroundColor: 'rgba(54, 162, 235, 0.5)',
                 borderColor: 'rgba(54, 162, 235, 1)',
                 errorBarColor: 'rgba(0, 0, 0, 0.8)', // Error bar color
+                type: 'scatter', // Ensure we are using scatter chart type
+                errorBars: {
+                    mode: 'both', // 'both', 'x', 'y'
+                    xMinKey: 'xMin',
+                    xMaxKey: 'xMax',
+                    yMinKey: 'yMin',
+                    yMaxKey: 'yMax',
+                    color: 'rgba(0, 0, 0, 0.8)',
+                },
             };
 
             // Create the chart with the dataset
             chart = new Chart(ctx, {
-                type: 'scatterWithErrorBars', // Use scatterWithErrorBars for error bars
+                type: 'scatter', // Use scatter chart type for error bars
                 data: {
                     datasets: [dataset],
                 },
