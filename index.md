@@ -100,87 +100,48 @@
         // Register the error bar plugin
         Chart.register(ChartErrorBars);
 
-        function plotGraph() {
-            const canvas = document.getElementById('myChart');
-            const ctx = canvas.getContext('2d');
+     function plotGraph() {
+    const canvas = document.getElementById('myChart');
+    const ctx = canvas.getContext('2d');
 
-            const xInput = document.getElementById('xValues').value.trim();
-            const yInput = document.getElementById('yValues').value.trim();
-            const xUncertaintyInput = document.getElementById('xUncertainty').value.trim();
-            const yUncertaintyInput = document.getElementById('yUncertainty').value.trim();
+    // Destroy the previous chart instance if it exists
+    if (chart) {
+        chart.destroy();
+    }
 
-            if (!xInput || !yInput || !xUncertaintyInput || !yUncertaintyInput) {
-                alert('Please enter X, Y values, and their uncertainties.');
-                return;
-            }
+    // Hardcoded dataset for testing
+    const dataset = {
+        data: [
+            { x: 1, y: 2, xMin: 0.5, xMax: 1.5, yMin: 1.5, yMax: 2.5 },
+            { x: 2, y: 3, xMin: 1.8, xMax: 2.2, yMin: 2.8, yMax: 3.2 },
+            { x: 3, y: 4, xMin: 2.7, xMax: 3.3, yMin: 3.5, yMax: 4.5 },
+        ],
+        backgroundColor: 'rgba(54, 162, 235, 0.5)',
+        borderColor: 'rgba(54, 162, 235, 1)',
+        errorBarColor: 'rgba(0, 0, 0, 0.8)',
+    };
 
-            const xValues = xInput.split(/\s+/).map(val => parseFloat(val.trim()));
-            const yValues = yInput.split(/\s+/).map(val => parseFloat(val.trim()));
-            const xUncertainties = xUncertaintyInput.split(/\s+/).map(val => parseFloat(val.trim()));
-            const yUncertainties = yUncertaintyInput.split(/\s+/).map(val => parseFloat(val.trim()));
+    console.log('Dataset for Testing:', dataset);
 
-            if (
-                xValues.some(isNaN) || yValues.some(isNaN) ||
-                xUncertainties.some(isNaN) || yUncertainties.some(isNaN)
-            ) {
-                alert('Ensure all inputs are valid numbers.');
-                return;
-            }
+    // Initialize the chart with the hardcoded dataset
+    chart = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+            datasets: [dataset],
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { display: true },
+            },
+            scales: {
+                x: { title: { display: true, text: 'X Values' } },
+                y: { title: { display: true, text: 'Y Values' } },
+            },
+        },
+    });
+}
 
-            if (
-                xValues.length !== yValues.length ||
-                xUncertainties.length !== xValues.length ||
-                yUncertainties.length !== yValues.length
-            ) {
-                alert('Ensure all input arrays have the same length.');
-                return;
-            }
-            console.log('Dataset:', dataset); // This logs the dataset object to the console
-
-
-            if (chart) {
-                chart.destroy();
-            }
-
-            chart = new Chart(ctx, {
-                type: 'scatter',
-                data: {
-                    datasets: [{
-                        label: 'Data with Error Bars',
-                        data: xValues.map((x, i) => ({
-                            x: x,
-                            y: yValues[i],
-                            xMin: x - xUncertainties[i],
-                            xMax: x + xUncertainties[i],
-                            yMin: yValues[i] - yUncertainties[i],
-                            yMax: yValues[i] + yUncertainties[i],
-                        })),
-                        borderColor: 'rgba(54, 162, 235, 1)',
-                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                        errorBarColor: 'rgba(0, 0, 0, 0.8)',
-                        pointRadius: 5,
-                        showLine: false,
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    scales: {
-                        x: { title: { display: true, text: 'X Values' } },
-                        y: { title: { display: true, text: 'Y Values' } }
-                    },
-                    plugins: {
-                        tooltip: {
-                            callbacks: {
-                                label: function(tooltipItem) {
-                                    const data = tooltipItem.raw;
-                                    return `X: ${data.x} (±${data.xMax - data.x})\nY: ${data.y} (±${data.yMax - data.y})`;
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-        }
 
         function clearInput(inputId) {
             document.getElementById(inputId).value = '';
