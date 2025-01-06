@@ -39,7 +39,7 @@
     <!-- Chart.js Library -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Chart.js Error Bars Plugin -->
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-errorbars"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-error-bars"></script>
 </head>
 <body>
     <h1>Plot Data with Error Bars</h1>
@@ -64,6 +64,7 @@
 
             // Hardcoded dataset with error bars
             const dataset = {
+                label: 'Dataset with Error Bars',
                 data: [
                     { x: 1, y: 2, xMin: 0.5, xMax: 1.5, yMin: 1.5, yMax: 2.5 },
                     { x: 2, y: 3, xMin: 1.8, xMax: 2.2, yMin: 2.8, yMax: 3.2 },
@@ -74,8 +75,6 @@
                 errorBarColor: 'rgba(0, 0, 0, 0.8)', // Error bar color
             };
 
-            console.log('Dataset for Testing:', dataset);
-
             // Create the chart with the dataset
             chart = new Chart(ctx, {
                 type: 'scatterWithErrorBars', // Use scatterWithErrorBars for error bars
@@ -85,7 +84,7 @@
                 options: {
                     responsive: true,
                     plugins: {
-                        legend: { display: false },
+                        legend: { display: true },
                     },
                     scales: {
                         x: {
@@ -98,9 +97,6 @@
                 },
             });
         }
-
-        // Register the error bars plugin
-        Chart.register(ChartErrorBars);
     </script>
 </body>
 </html>
