@@ -59,6 +59,7 @@
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-errorbars"></script>
 </head>
 <body>
     <h1>Plot X and Y Data</h1>
@@ -85,6 +86,9 @@
     </div>
 
     <script>
+        // Register the error bars plugin
+        Chart.register(ChartErrorBars);
+        
         let chart; // To store the Chart.js instance
 
         function plotGraph() {
