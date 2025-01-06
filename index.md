@@ -111,6 +111,22 @@
                 alert('X and Y values must have the same length.');
                 return;
             }
+            const xUncertaintyInput = document.getElementById('xUncertainty').value.trim();
+            const yUncertaintyInput = document.getElementById('yUncertainty').value.trim();
+            
+            const xUncertainties = xUncertaintyInput.split(/\s+/).map(val => parseFloat(val.trim()));
+            const yUncertainties = yUncertaintyInput.split(/\s+/).map(val => parseFloat(val.trim()));
+            
+            if (xUncertainties.some(isNaN) || yUncertainties.some(isNaN)) {
+                alert('Please ensure all uncertainties are valid numbers.');
+                return;
+            }
+            
+            if (xValues.length !== xUncertainties.length || yValues.length !== yUncertainties.length) {
+                alert('X and Y uncertainties must have the same length as X and Y values.');
+                return;
+            }
+
 
             if (chart) {
                 chart.destroy();
