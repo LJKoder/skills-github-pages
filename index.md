@@ -313,7 +313,7 @@ chart.update();
                 }).join('');
             
                 // Format as (mantissa ± adjustedError)×10^superscriptExponent
-                return (${valueMantissa.toFixed(3)} ± ${adjustedError.toFixed(3)})×10${superscriptExponent};
+                return `(${valueMantissa.toFixed(3)} ± ${adjustedError.toFixed(3)})×10${superscriptExponent}`;
 
         }
     </script>
