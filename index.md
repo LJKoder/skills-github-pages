@@ -135,19 +135,27 @@
             chart = new Chart(ctx, {
                 type: 'scatter',
                 data: {
-                    datasets: [{
-                        data: xValues.map((x, i) => ({ x: x, y: yValues[i] })),
-                        borderColor: 'rgba(54, 162, 235, 1)',
-                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                        borderWidth: 2,
-                        showLine: false,
-                        tension: 0.3,
-                        pointStyle: 'crossRot',  // Change this to 'cross' to make data points appear as Xs
-                        pointBorderColor: 'black',  // Set border color to black for the cross
-                        pointBackgroundColor: 'transparent',  // Make the inside of the cross transparent
-                        pointRadius: 5  // Size of the cross
-                    }]
-                },
+    datasets: [{
+        data: xValues.map((x, i) => ({
+            x: x,
+            y: yValues[i],
+            xMin: x - xUncertainties[i],
+            xMax: x + xUncertainties[i],
+            yMin: yValues[i] - yUncertainties[i],
+            yMax: yValues[i] + yUncertainties[i]
+        })),
+        borderColor: 'rgba(54, 162, 235, 1)',
+        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+        borderWidth: 2,
+        showLine: false,
+        tension: 0.3,
+        pointStyle: 'circle',
+        pointBorderColor: 'black',
+        pointBackgroundColor: 'transparent',
+        pointRadius: 5,
+        errorBarColor: 'rgba(0, 0, 0, 0.5)'
+    }]
+}
                 options: {
                     responsive: true,
                     scales: {
@@ -166,6 +174,7 @@
                     },
                 },
             });
+            
         }
 
         function plotRegressionLine() {
