@@ -212,7 +212,7 @@ Chart.register({
         const beta1Formatted = formatWithError(beta1, seBeta1);
         const beta0Formatted = formatWithError(beta0, seBeta0);
 
-        ctx.fillText(Y = ${beta1Formatted} X + ${beta0Formatted}, x, y);
+        ctx.fillText(`Y = ${beta1Formatted} X + ${beta0Formatted}`, x, y);
 
         ctx.restore();
     }
