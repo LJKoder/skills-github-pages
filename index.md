@@ -135,6 +135,8 @@
                 alert('Ensure all input arrays have the same length.');
                 return;
             }
+            console.log('Dataset:', dataset); // This logs the dataset object to the console
+
 
             if (chart) {
                 chart.destroy();
