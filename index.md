@@ -91,75 +91,57 @@
         
         let chart; // To store the Chart.js instance
 
-        function plotGraph() {
-            const canvas = document.getElementById('myChart');
-            const ctx = canvas.getContext('2d');
+function plotGraph() {
+    const canvas = document.getElementById('myChart');
+    const ctx = canvas.getContext('2d');
 
-            const xInput = document.getElementById('xValues').value.trim();
-            const yInput = document.getElementById('yValues').value.trim();
+    const xInput = document.getElementById('xValues').value.trim();
+    const yInput = document.getElementById('yValues').value.trim();
+    const xUncertaintyInput = document.getElementById('xUncertainty').value.trim();
+    const yUncertaintyInput = document.getElementById('yUncertainty').value.trim();
 
-            if (!xInput || !yInput) {
-                alert('Please enter both X and Y values.');
-                return;
+    const xValues = xInput.split(/\s+/).map(val => parseFloat(val.trim()));
+    const yValues = yInput.split(/\s+/).map(val => parseFloat(val.trim()));
+    const xUncertainties = xUncertaintyInput.split(/\s+/).map(val => parseFloat(val.trim()));
+    const yUncertainties = yUncertaintyInput.split(/\s+/).map(val => parseFloat(val.trim()));
+
+    if (xValues.length !== xUncertainties.length || yValues.length !== yUncertainties.length) {
+        alert('Ensure uncertainties match the length of data points.');
+        return;
+    }
+
+    if (chart) {
+        chart.destroy();
+    }
+
+    chart = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+            datasets: [{
+                data: xValues.map((x, i) => ({
+                    x: x,
+                    y: yValues[i],
+                    xMin: x - xUncertainties[i],
+                    xMax: x + xUncertainties[i],
+                    yMin: yValues[i] - yUncertainties[i],
+                    yMax: yValues[i] + yUncertainties[i],
+                })),
+                borderColor: 'rgba(54, 162, 235, 1)',
+                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                errorBarColor: 'rgba(0, 0, 0, 0.5)', // Error bar color
+                pointRadius: 5,
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                x: { title: { display: true, text: 'X Values' } },
+                y: { title: { display: true, text: 'Y Values' } }
             }
-
-            const xValues = xInput.split(/\s+/).map(val => parseFloat(val.trim()));
-            const yValues = yInput.split(/\s+/).map(val => parseFloat(val.trim()));
-
-            if (xValues.some(isNaN) || yValues.some(isNaN)) {
-                alert('Please ensure all inputs are valid numbers.');
-                return;
-            }
-
-            if (xValues.length !== yValues.length) {
-                alert('X and Y values must have the same length.');
-                return;
-            }
-            const xUncertaintyInput = document.getElementById('xUncertainty').value.trim();
-            const yUncertaintyInput = document.getElementById('yUncertainty').value.trim();
-            
-            const xUncertainties = xUncertaintyInput.split(/\s+/).map(val => parseFloat(val.trim()));
-            const yUncertainties = yUncertaintyInput.split(/\s+/).map(val => parseFloat(val.trim()));
-            
-            if (xUncertainties.some(isNaN) || yUncertainties.some(isNaN)) {
-                alert('Please ensure all uncertainties are valid numbers.');
-                return;
-            }
-            
-            if (xValues.length !== xUncertainties.length || yValues.length !== yUncertainties.length) {
-                alert('X and Y uncertainties must have the same length as X and Y values.');
-                return;
-            }
-
-
-            if (chart) {
-                chart.destroy();
-            }
-
-            chart = new Chart(ctx, {
-                type: 'scatter',
-                data: {
-    datasets: [{
-        data: xValues.map((x, i) => ({
-            x: x,
-            y: yValues[i],
-            xMin: x - xUncertainties[i],
-            xMax: x + xUncertainties[i],
-            yMin: yValues[i] - yUncertainties[i],
-            yMax: yValues[i] + yUncertainties[i]
-        })),
-        borderColor: 'rgba(54, 162, 235, 1)',
-        backgroundColor: 'rgba(54, 162, 235, 0.2)',
-        borderWidth: 2,
-        showLine: false,
-        tension: 0.3,
-        pointStyle: 'circle',
-        pointBorderColor: 'black',
-        pointBackgroundColor: 'transparent',
-        pointRadius: 5,
-        errorBarColor: 'rgba(0, 0, 0, 0.5)'
-    }]
+        }
+    });
 }
+
                 options: {
                     responsive: true,
                     scales: {
