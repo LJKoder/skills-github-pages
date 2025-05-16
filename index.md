@@ -19,7 +19,7 @@
       margin: 20px 0;
     }
 
-    .input-box {
+    .input-group {
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -70,35 +70,23 @@
 </head>
 <body>
   <h1>Plot X and Y Data</h1>
-  <p>Enter tab- or space-separated X and Y values. You can also label the axes and add error values.</p>
+  <p>Enter values below to plot the data and regression line.</p>
 
   <div class="input-section">
-    <div class="input-box">
-      <label for="xLabel">X Axis Label</label>
-      <input type="text" id="xLabel" placeholder="e.g. Time (s)">
-    </div>
-    <div class="input-box">
-      <label for="yLabel">Y Axis Label</label>
-      <input type="text" id="yLabel" placeholder="e.g. Distance (m)">
-    </div>
-    <div class="input-box">
-      <label for="xValues">X Values</label>
-      <input type="text" id="xValues" placeholder="e.g. 1 2 3 4">
+    <div class="input-group">
+      <input type="text" id="xLabel" placeholder="X Axis Label" />
+      <input type="text" id="xValues" placeholder="X Values" />
       <button class="clear-button" onclick="clearInput('xValues')">Clear</button>
     </div>
-    <div class="input-box">
-      <label for="yValues">Y Values</label>
-      <input type="text" id="yValues" placeholder="e.g. 10 20 30 40">
+
+    <div class="input-group">
+      <input type="text" id="yLabel" placeholder="Y Axis Label" />
+      <input type="text" id="yValues" placeholder="Y Values" />
       <button class="clear-button" onclick="clearInput('yValues')">Clear</button>
     </div>
-    <div class="input-box">
-      <label for="xErrors">X Error Values</label>
-      <input type="text" id="xErrors" placeholder="e.g. 0.1 0.1 0.1 0.1">
-      <button class="clear-button" onclick="clearInput('xErrors')">Clear</button>
-    </div>
-    <div class="input-box">
-      <label for="yErrors">Y Error Values</label>
-      <input type="text" id="yErrors" placeholder="e.g. 1 1 1 1">
+
+    <div class="input-group">
+      <input type="text" id="yErrors" placeholder="Y Error Values" />
       <button class="clear-button" onclick="clearInput('yErrors')">Clear</button>
     </div>
   </div>
@@ -113,49 +101,42 @@
   <script>
     let chart;
 
+    function clearInput(id) {
+      document.getElementById(id).value = '';
+    }
+
     function plotGraph() {
-      const ctx = document.getElementById('myChart').getContext('2d');
+      const canvas = document.getElementById('myChart');
+      const ctx = canvas.getContext('2d');
 
       const xInput = document.getElementById('xValues').value.trim();
       const yInput = document.getElementById('yValues').value.trim();
       const xLabel = document.getElementById('xLabel').value || 'X Values';
       const yLabel = document.getElementById('yLabel').value || 'Y Values';
 
-      if (!xInput || !yInput) {
-        alert('Please enter both X and Y values.');
+      const xValues = xInput.split(/\s+/).map(Number);
+      const yValues = yInput.split(/\s+/).map(Number);
+
+      if (xValues.length !== yValues.length || xValues.some(isNaN) || yValues.some(isNaN)) {
+        alert('Please ensure X and Y values are valid and of equal length.');
         return;
       }
 
-      const xValues = xInput.split(/\s+/).map(val => parseFloat(val.trim()));
-      const yValues = yInput.split(/\s+/).map(val => parseFloat(val.trim()));
-
-      if (xValues.some(isNaN) || yValues.some(isNaN)) {
-        alert('Please ensure all inputs are valid numbers.');
-        return;
-      }
-
-      if (xValues.length !== yValues.length) {
-        alert('X and Y values must have the same length.');
-        return;
-      }
-
-      if (chart) {
-        chart.destroy();
-      }
+      if (chart) chart.destroy();
 
       chart = new Chart(ctx, {
         type: 'scatter',
         data: {
           datasets: [{
-            label: 'Data Points',
             data: xValues.map((x, i) => ({ x: x, y: yValues[i] })),
             borderColor: 'rgba(54, 162, 235, 1)',
             backgroundColor: 'rgba(54, 162, 235, 0.2)',
-            pointRadius: 5,
+            borderWidth: 2,
+            showLine: false,
             pointStyle: 'crossRot',
             pointBorderColor: 'black',
             pointBackgroundColor: 'transparent',
-            showLine: false,
+            pointRadius: 5
           }]
         },
         options: {
@@ -165,42 +146,44 @@
               title: {
                 display: true,
                 text: xLabel,
-              },
+              }
             },
             y: {
               title: {
                 display: true,
                 text: yLabel,
-              },
-            },
-          },
-        },
+              }
+            }
+          }
+        }
       });
     }
 
     function plotRegressionLine() {
       const xInput = document.getElementById('xValues').value.trim();
       const yInput = document.getElementById('yValues').value.trim();
+      const yErrorsInput = document.getElementById('yErrors').value.trim();
 
-      if (!xInput || !yInput) {
-        alert('Please enter both X and Y values.');
+      const xValues = xInput.split(/\s+/).map(Number);
+      const yValues = yInput.split(/\s+/).map(Number);
+
+      if (xValues.length !== yValues.length || xValues.some(isNaN) || yValues.some(isNaN)) {
+        alert('Invalid or mismatched X and Y values.');
         return;
       }
 
-      const xValues = xInput.split(/\s+/).map(val => parseFloat(val.trim()));
-      const yValues = yInput.split(/\s+/).map(val => parseFloat(val.trim()));
-
-      if (xValues.some(isNaN) || yValues.some(isNaN)) {
-        alert('Please ensure all inputs are valid numbers.');
-        return;
+      let weights = [];
+      if (yErrorsInput) {
+        const yErrors = yErrorsInput.split(/\s+/).map(Number);
+        if (yErrors.length !== yValues.length || yErrors.some(e => isNaN(e) || e <= 0)) {
+          alert('Y error values must be positive numbers matching Y values length.');
+          return;
+        }
+        weights = yErrors.map(e => 1 / (e * e));
+      } else {
+        weights = Array(yValues.length).fill(1);
       }
 
-      if (xValues.length !== yValues.length) {
-        alert('X and Y values must have the same length.');
-        return;
-      }
-
-      const weights = Array(xValues.length).fill(1);
       const data = xValues.map((x, i) => [x, yValues[i]]);
       const { beta0, beta1, seBeta0, seBeta1 } = weightedLinearRegressionWithErrors(data, weights);
 
@@ -220,10 +203,7 @@
           ctx.save();
           ctx.fillStyle = 'black';
           ctx.font = '16px Arial';
-
-          const beta1Formatted = formatWithError(beta1, seBeta1);
-          const beta0Formatted = formatWithError(beta0, seBeta0);
-          ctx.fillText(`Y = ${beta1Formatted} X + ${beta0Formatted}`, x, y);
+          ctx.fillText(`Y = ${formatWithError(beta1, seBeta1)} X + ${formatWithError(beta0, seBeta0)}`, x, y);
           ctx.restore();
         }
       });
@@ -241,21 +221,17 @@
       chart.update();
     }
 
-    function clearInput(inputId) {
-      document.getElementById(inputId).value = '';
-    }
-
     function weightedLinearRegressionWithErrors(data, weights) {
       const n = data.length;
+      const sum = arr => arr.reduce((a, b) => a + b, 0);
       const x = data.map(d => d[0]);
       const y = data.map(d => d[1]);
 
-      const sum = arr => arr.reduce((a, b) => a + b, 0);
       const sumw = sum(weights);
-      const sumwx = sum(x.map((val, i) => weights[i] * val));
-      const sumwy = sum(y.map((val, i) => weights[i] * val));
-      const sumwxy = sum(x.map((val, i) => weights[i] * val * y[i]));
-      const sumwx2 = sum(x.map((val, i) => weights[i] * val * val));
+      const sumwx = sum(x.map((v, i) => weights[i] * v));
+      const sumwy = sum(y.map((v, i) => weights[i] * v));
+      const sumwxy = sum(x.map((v, i) => weights[i] * v * y[i]));
+      const sumwx2 = sum(x.map((v, i) => weights[i] * v * v));
 
       const xbar = sumwx / sumw;
       const ybar = sumwy / sumw;
@@ -271,7 +247,7 @@
 
       const dfw = sumw - 2;
       const svar = rss / dfw;
-      const xxbar = sum(x.map((val, i) => weights[i] * Math.pow(val - xbar, 2)));
+      const xxbar = sum(x.map((v, i) => weights[i] * Math.pow(v - xbar, 2)));
       const svar1 = svar / xxbar;
       const svar0 = svar * sumwx2 / (sumw * xxbar);
 
@@ -279,7 +255,7 @@
         beta0,
         beta1,
         seBeta0: Math.sqrt(svar0),
-        seBeta1: Math.sqrt(svar1),
+        seBeta1: Math.sqrt(svar1)
       };
     }
 
@@ -294,12 +270,10 @@
 
       const adjustedError = errorMantissa * Math.pow(10, errorExponent - valueExponent);
 
-      const superscript = valueExponent.toString().split('').map(char => ({
-        '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
-        '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹', '-': '⁻'
-      })[char] || '').join('');
+      const superscripts = { '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹', '-': '⁻' };
+      const superscriptExponent = valueExponent.toString().split('').map(c => superscripts[c]).join('');
 
-      return `(${valueMantissa.toFixed(3)} ± ${adjustedError.toFixed(3)})×10${superscript}`;
+      return `(${valueMantissa.toFixed(3)} ± ${adjustedError.toFixed(3)})×10${superscriptExponent}`;
     }
   </script>
 </body>
