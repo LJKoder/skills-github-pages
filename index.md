@@ -212,7 +212,7 @@ Chart.register({
         const beta1Formatted = formatWithError(beta1, seBeta1);
         const beta0Formatted = formatWithError(beta0, seBeta0);
 
-        ctx.fillText(`Y = ${beta1Formatted} X + ${beta0Formatted}`, x, y);
+        ctx.fillText(Y = ${beta1Formatted} X + ${beta0Formatted}, x, y);
 
         ctx.restore();
     }
@@ -319,3 +319,145 @@ chart.update();
     </script>
 </body>
 </html>
+ChatGPT said:
+Here is your modified HTML code with the following additions:
+
+Input boxes for:
+
+X-axis label
+
+Y-axis label
+
+X error values
+
+Y error values
+
+Integration of those labels into the chart
+
+Placeholders for where you could later use the error bar data
+
+Note: Chart.js does not support error bars natively. Libraries like chartjs-plugin-error-bars can be used for rendering error bars if you want full support later. For now, we simply capture the values.
+
+✅ Modified Code:
+<!-- Add these inside the <body> after the title -->
+<h1>Plot X and Y Data</h1>
+<p>Enter X and Y values (tab or newline-separated) to plot on the graph.</p>
+
+<div class="input-section">
+    <div>
+        <input type="text" id="xValues" placeholder="X Values">
+        <br>
+        <button class="clear-button" onclick="clearInput('xValues')">Clear</button>
+    </div>
+    <div>
+        <input type="text" id="yValues" placeholder="Y Values">
+        <br>
+        <button class="clear-button" onclick="clearInput('yValues')">Clear</button>
+    </div>
+    <div>
+        <input type="text" id="xErrors" placeholder="X Error Values">
+        <br>
+        <button class="clear-button" onclick="clearInput('xErrors')">Clear</button>
+    </div>
+    <div>
+        <input type="text" id="yErrors" placeholder="Y Error Values">
+        <br>
+        <button class="clear-button" onclick="clearInput('yErrors')">Clear</button>
+    </div>
+</div>
+
+<div class="input-section">
+    <div>
+        <input type="text" id="xLabel" placeholder="X Axis Label">
+    </div>
+    <div>
+        <input type="text" id="yLabel" placeholder="Y Axis Label">
+    </div>
+</div>
+
+<!-- Buttons -->
+<button onclick="plotGraph()">Plot Data</button>
+<button onclick="plotRegressionLine()">Plot Regression Line</button>
+
+<!-- Chart Container -->
+<div id="chart-container">
+    <canvas id="myChart"></canvas>
+</div>
+🛠 Add these changes inside your <script> block:
+Replace the existing plotGraph function with this version:
+
+function plotGraph() {
+    const canvas = document.getElementById('myChart');
+    const ctx = canvas.getContext('2d');
+
+    const xInput = document.getElementById('xValues').value.trim();
+    const yInput = document.getElementById('yValues').value.trim();
+    const xErrorInput = document.getElementById('xErrors').value.trim();
+    const yErrorInput = document.getElementById('yErrors').value.trim();
+    const xLabel = document.getElementById('xLabel').value.trim() || 'X Values';
+    const yLabel = document.getElementById('yLabel').value.trim() || 'Y Values';
+
+    if (!xInput || !yInput) {
+        alert('Please enter both X and Y values.');
+        return;
+    }
+
+    const xValues = xInput.split(/\s+/).map(val => parseFloat(val));
+    const yValues = yInput.split(/\s+/).map(val => parseFloat(val));
+    const xErrors = xErrorInput ? xErrorInput.split(/\s+/).map(val => parseFloat(val)) : [];
+    const yErrors = yErrorInput ? yErrorInput.split(/\s+/).map(val => parseFloat(val)) : [];
+
+    if (xValues.some(isNaN) || yValues.some(isNaN) ||
+        (xErrors.length && xErrors.some(isNaN)) ||
+        (yErrors.length && yErrors.some(isNaN))) {
+        alert('Ensure all inputs are valid numbers.');
+        return;
+    }
+
+    if (xValues.length !== yValues.length) {
+        alert('X and Y values must be the same length.');
+        return;
+    }
+
+    if (chart) {
+        chart.destroy();
+    }
+
+    chart = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+            datasets: [{
+                label: 'Data Points',
+                data: xValues.map((x, i) => ({ x: x, y: yValues[i] })),
+                borderColor: 'rgba(54, 162, 235, 1)',
+                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                borderWidth: 2,
+                showLine: false,
+                pointStyle: 'crossRot',
+                pointBorderColor: 'black',
+                pointBackgroundColor: 'transparent',
+                pointRadius: 5
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: xLabel
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: yLabel
+                    }
+                }
+            }
+        }
+    });
+
+    // Optionally use xErrors and yErrors later for rendering error bars
+}
+
