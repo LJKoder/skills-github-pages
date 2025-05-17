@@ -138,11 +138,11 @@
         mode: 'markers',
         type: 'scatter',
         name: '',
-        marker: {
-          color: 'black',
-          size: 1
-          
-        }
+      marker: {
+        color: 'blue',
+        size: 4,
+        symbol: 'x'
+      },
         error_x: xErr.length === x.length ? {
           type: 'data',
           array: xErr,
