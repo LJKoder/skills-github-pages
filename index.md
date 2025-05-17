@@ -52,7 +52,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@sgratzl/chartjs-chart-errorbars@4.0.0/build/index.umd.min.js"></script>
 </head>
 <body>
-  <h1>Plot Data with Error Bars</h1>
+  <h1>Plot Data with Error Bars v1</h1>
   <div class="input-grid">
     <input type="text" id="xLabel" placeholder="X Axis Label">
     <input type="text" id="yLabel" placeholder="Y Axis Label">
