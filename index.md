@@ -164,7 +164,8 @@
         line: { color: 'red', width: 2 }
       });
 
-      const annotationText = `y = (${slope.toFixed(2)} ± ${slopeUncertainty.toFixed(2)})x + (${intercept.toFixed(2)} ± ${interceptUncertainty.toFixed(2)})`;
+const annotationText = `y = (${slope.toExponential(3)} ± ${slopeUncertainty.toExponential(3)})x + (${intercept.toExponential(3)} ± ${interceptUncertainty.toExponential(3)})`;
+
 
       const layout = {
         title: '',
