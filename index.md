@@ -12,12 +12,18 @@
       text-align: center;
     }
     .input-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 12px;
-      max-width: 900px;
-      margin: 0 auto 30px;
-    }
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
+  max-width: 900px;
+  margin: 0 auto 30px;
+}
+.input-grid strong {
+  font-size: 16px;
+  grid-column: span 3;
+  text-align: left;
+  padding-top: 10px;
+}
     input[type="text"] {
       padding: 8px;
       font-size: 14px;
