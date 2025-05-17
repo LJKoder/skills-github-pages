@@ -13,7 +13,7 @@
 </head>
 <body>
 
-  <h2>Scatter Plot with Y Error Bars</h2>
+  <h2>Scatter Plot with Y Error Bars 1</h2>
 
   <div>
     <input id="xValues" type="text" placeholder="X values (e.g. 1 2 3 4)">
