@@ -45,20 +45,24 @@
 <body>
   <h1>Plotly Graph with Error Bars and Weighted Regression 6</h1>
   <div class="input-grid">
-    <input type="text" id="xLabel" placeholder="X Axis Label">
-    <input type="text" id="yLabel" placeholder="Y Axis Label">
-    <div></div><div></div>
+  <!-- Axis labels -->
+  <div><strong>Axis Labels</strong></div><div></div><div></div>
+  <input type="text" id="xLabel" placeholder="X Axis Label">
+  <input type="text" id="yLabel" placeholder="Y Axis Label">
+  <div></div>
 
-    <input type="text" id="xValues" placeholder="X Values (space-separated)">
-    <input type="text" id="xErrors" placeholder="X Errors (optional)">
-    <div></div><div></div>
-    <input type="text" id="yValues" placeholder="Y Values">
-    <input type="text" id="yErrors" placeholder="Y Errors (optional)">
-    
-    
-    
-    
-  </div>
+  <!-- X values -->
+  <div><strong>X Values</strong></div><div></div><div></div>
+  <input type="text" id="xValues" placeholder="X Values (space-separated)">
+  <input type="text" id="xErrors" placeholder="X Errors (optional)">
+  <div></div>
+
+  <!-- Y values -->
+  <div><strong>Y Values</strong></div><div></div><div></div>
+  <input type="text" id="yValues" placeholder="Y Values">
+  <input type="text" id="yErrors" placeholder="Y Errors (optional)">
+  <div></div>
+</div>
 
   <button onclick="plotData()">Plot</button>
   <button onclick="downloadPlot()">Download Chart</button>
