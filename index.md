@@ -29,7 +29,7 @@
   </style>
 </head>
 <body>
-  <h1>Plot Data with Error Bars and Regression</h1>
+  <h1>Plot Data with Error Bars and Regression 2</h1>
 
   <div class="input-grid">
     <input id="xValues" placeholder="X Values (space-separated)">
