@@ -46,6 +46,10 @@
   </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-error-bars"></script>
+  <script>
+  // Register the error bars plugin globally
+  Chart.register(window['chartjs-plugin-error-bars']);
+  </script>
 </head>
 <body>
   <h1>Plot Data with Error Bars</h1>
