@@ -50,11 +50,14 @@
     <div></div><div></div>
 
     <input type="text" id="xValues" placeholder="X Values (space-separated)">
-    <input type="text" id="yValues" placeholder="Y Values">
-    <div></div><div></div>
-    
     <input type="text" id="xErrors" placeholder="X Errors (optional)">
+    <div></div><div></div>
+    <input type="text" id="yValues" placeholder="Y Values">
     <input type="text" id="yErrors" placeholder="Y Errors (optional)">
+    
+    
+    
+    
   </div>
 
   <button onclick="plotData()">Plot</button>
