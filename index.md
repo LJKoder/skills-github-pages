@@ -3,37 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Plot with Error Bars</title>
+  <title>Debug Plot with Error Bars</title>
   <style>
     body {
       font-family: Arial, sans-serif;
       text-align: center;
       margin: 40px;
-    }
-    .input-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 15px;
-      max-width: 900px;
-      margin: 0 auto 30px;
-    }
-    input[type="text"] {
-      width: 100%;
-      padding: 8px;
-      font-size: 14px;
-    }
-    button {
-      padding: 10px 20px;
-      margin: 10px;
-      font-size: 16px;
-      cursor: pointer;
-      background-color: #4CAF50;
-      color: white;
-      border: none;
-      border-radius: 4px;
-    }
-    button:hover {
-      background-color: #45a049;
     }
     #chart-container {
       width: 100%;
@@ -44,82 +19,51 @@
       height: 100% !important;
     }
   </style>
-
-  <!-- Load Chart.js and plugin via CDN -->
+  
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <!-- Error Bars Plugin -->
   <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-error-bars@3.0.0/dist/chartjs-chart-error-bars.umd.js"></script>
 
-  <!-- Register the plugin -->
-  <script>
-    Chart.register(window['chartjs-chart-error-bars']);
-  </script>
 </head>
 <body>
-  <h1>Plot Data with Error Bars</h1>
-  <div class="input-grid">
-    <input type="text" id="xLabel" placeholder="X Axis Label">
-    <input type="text" id="yLabel" placeholder="Y Axis Label">
-    <div></div>
-
-    <input type="text" id="xValues" placeholder="X Values (space/tab/newline-separated)">
-    <input type="text" id="yValues" placeholder="Y Values">
-    <div></div>
-
-    <input type="text" id="xErrors" placeholder="X Errors">
-    <input type="text" id="yErrors" placeholder="Y Errors">
-    <div></div>
-  </div>
-
-  <button onclick="plotGraph()">Plot Data</button>
-  <button onclick="plotRegressionLine()">Plot Regression Line</button>
-  <button onclick="downloadChart()">Download Chart</button>
+  <h1>Debug: Plot with Error Bars</h1>
 
   <div id="chart-container">
     <canvas id="myChart"></canvas>
   </div>
 
   <script>
-    let chart;
-
-    function parseInput(id) {
-      return document.getElementById(id).value.trim().split(/\s+/).map(parseFloat);
+    // Register error bar chart types from the plugin
+    if (window.ChartErrorBars) {
+      Chart.register(
+        window.ChartErrorBars.ScatterWithErrorBarsController,
+        window.ChartErrorBars.ErrorBarElement
+      );
+      console.log("✅ Error bars plugin registered.");
+    } else {
+      console.warn("❌ Error bars plugin not available.");
     }
 
-    function plotGraph() {
-      const xValues = parseInput('xValues');
-      const yValues = parseInput('yValues');
-      const xErrors = parseInput('xErrors');
-      const yErrors = parseInput('yErrors');
+    const ctx = document.getElementById('myChart').getContext('2d');
 
-      const xLabel = document.getElementById('xLabel').value || 'X Values';
-      const yLabel = document.getElementById('yLabel').value || 'Y Values';
+    const testData = [
+      { x: 1, y: 2, xMin: 0.8, xMax: 1.2, yMin: 1.8, yMax: 2.2 },
+      { x: 2, y: 3, xMin: 1.9, xMax: 2.1, yMin: 2.7, yMax: 3.3 },
+      { x: 3, y: 4, xMin: 2.7, xMax: 3.3, yMin: 3.8, yMax: 4.2 }
+    ];
 
-      if (xValues.length !== yValues.length ||
-          (xErrors.length && xErrors.length !== xValues.length) ||
-          (yErrors.length && yErrors.length !== yValues.length)) {
-        alert('Length of values and errors must match.');
-        return;
-      }
-
-      const data = xValues.map((x, i) => ({
-        x,
-        y: yValues[i],
-        xMin: x - (xErrors[i] || 0),
-        xMax: x + (xErrors[i] || 0),
-        yMin: yValues[i] - (yErrors[i] || 0),
-        yMax: yValues[i] + (yErrors[i] || 0),
-      }));
-
-      if (chart) chart.destroy();
-
-      chart = new Chart(document.getElementById('myChart').getContext('2d'), {
+    let chart;
+    try {
+      chart = new Chart(ctx, {
         type: 'scatterWithErrorBars',
         data: {
           datasets: [{
-            label: 'Measured Data',
-            data,
-            backgroundColor: 'rgba(54, 162, 235, 0.6)',
-            borderColor: 'rgba(54, 162, 235, 1)',
+            label: 'Test Data with Error Bars',
+            data: testData,
+            backgroundColor: 'rgba(75, 192, 192, 0.6)',
+            borderColor: 'rgba(75, 192, 192, 1)',
             pointRadius: 5,
             errorBarWhiskerColor: 'black',
             errorBarWhiskerLineWidth: 1.5,
@@ -135,82 +79,22 @@
             x: {
               title: {
                 display: true,
-                text: xLabel
+                text: 'X Axis'
               }
             },
             y: {
               title: {
                 display: true,
-                text: yLabel
+                text: 'Y Axis'
               }
             }
           }
         }
       });
-    }
-
-    function plotRegressionLine() {
-      const xValues = parseInput('xValues');
-      const yValues = parseInput('yValues');
-      const yErrors = parseInput('yErrors');
-
-      if (xValues.length !== yValues.length || (yErrors.length && yErrors.length !== yValues.length)) {
-        alert('X, Y, and Y error lengths must match.');
-        return;
-      }
-
-      const weights = yErrors.length ? yErrors.map(e => 1 / (e * e)) : Array(xValues.length).fill(1);
-      const data = xValues.map((x, i) => [x, yValues[i]]);
-
-      const { beta0, beta1 } = weightedLinearRegressionWithErrors(data, weights);
-
-      const minX = Math.min(...xValues);
-      const maxX = Math.max(...xValues);
-      const lineData = [
-        { x: minX, y: beta1 * minX + beta0 },
-        { x: maxX, y: beta1 * maxX + beta0 }
-      ];
-
-      chart.data.datasets.push({
-        label: 'Regression Line',
-        data: lineData,
-        type: 'line',
-        borderColor: 'rgba(255, 99, 132, 1)',
-        backgroundColor: 'rgba(255, 99, 132, 0.2)',
-        fill: false,
-        tension: 0,
-        borderWidth: 2,
-        pointRadius: 0,
-      });
-
-      chart.update();
-    }
-
-    function weightedLinearRegressionWithErrors(data, weights) {
-      const x = data.map(d => d[0]);
-      const y = data.map(d => d[1]);
-      const sum = arr => arr.reduce((a, b) => a + b, 0);
-
-      const sumw = sum(weights);
-      const sumwx = sum(x.map((xi, i) => weights[i] * xi));
-      const sumwy = sum(y.map((yi, i) => weights[i] * yi));
-      const sumwxy = sum(x.map((xi, i) => weights[i] * xi * y[i]));
-      const sumwx2 = sum(x.map((xi, i) => weights[i] * xi * xi));
-
-      const xbar = sumwx / sumw;
-      const ybar = sumwy / sumw;
-
-      const beta1 = (sumwxy - sumwx * ybar) / (sumwx2 - sumwx * xbar);
-      const beta0 = ybar - beta1 * xbar;
-
-      return { beta0, beta1 };
-    }
-
-    function downloadChart() {
-      const link = document.createElement('a');
-      link.download = 'chart.png';
-      link.href = document.getElementById('myChart').toDataURL();
-      link.click();
+      console.log("✅ Chart rendered with error bars.");
+    } catch (error) {
+      console.error("❌ Chart rendering failed:", error);
+      alert("Chart rendering failed. Check the console for details.");
     }
   </script>
 </body>
