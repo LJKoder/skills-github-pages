@@ -44,11 +44,14 @@
       height: 100% !important;
     }
   </style>
+
+  <!-- Load Chart.js and plugin via CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-error-bars"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-error-bars@3.0.0/dist/chartjs-chart-error-bars.umd.js"></script>
+
+  <!-- Register the plugin -->
   <script>
-  // Register the error bars plugin globally
-  Chart.register(window['chartjs-plugin-error-bars']);
+    Chart.register(window['chartjs-chart-error-bars']);
   </script>
 </head>
 <body>
