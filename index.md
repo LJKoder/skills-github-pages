@@ -2,151 +2,163 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Plotly Weighted Regression with Error Bars</title>
+  <title>Weighted Regression with Plotly</title>
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
-      padding: 20px;
+      margin: 40px;
     }
     .input-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(3, 1fr);
       gap: 10px;
-      max-width: 600px;
       margin-bottom: 20px;
+      max-width: 900px;
     }
-    input[type="text"], button {
-      padding: 8px;
-      font-size: 14px;
+    .input-grid div {
+      display: flex;
+      flex-direction: column;
+    }
+    textarea {
       width: 100%;
+      height: 100px;
+      font-size: 14px;
+      padding: 5px;
     }
     button {
-      margin-top: 10px;
+      padding: 10px 20px;
+      font-size: 16px;
+      margin-right: 10px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    #plot {
+      width: 100%;
+      height: 600px;
     }
   </style>
 </head>
 <body>
-  <h2>Plot Data with Weighted Regression and Error Bars 3</h2>
+  <h2>Plotly Weighted Linear Regression with Error Bars 4</h2>
+
   <div class="input-grid">
     <div>
-      <label for="xLabel">X Axis Label</label>
-      <input type="text" id="xLabel" placeholder="X Axis Label" />
-
       <label for="xValues">X Values</label>
-      <input type="text" id="xValues" placeholder="space-separated" />
-
-      <label for="xErrors">X Errors</label>
-      <input type="text" id="xErrors" placeholder="space-separated" />
+      <textarea id="xValues" placeholder="e.g. 1 2 3"></textarea>
     </div>
     <div>
-      <label for="yLabel">Y Axis Label</label>
-      <input type="text" id="yLabel" placeholder="Y Axis Label" />
-
       <label for="yValues">Y Values</label>
-      <input type="text" id="yValues" placeholder="space-separated" />
-
+      <textarea id="yValues" placeholder="e.g. 2.1 2.9 4.2"></textarea>
+    </div>
+    <div>
       <label for="yErrors">Y Errors</label>
-      <input type="text" id="yErrors" placeholder="space-separated (optional)" />
+      <textarea id="yErrors" placeholder="e.g. 0.1 0.2 0.15"></textarea>
     </div>
   </div>
-  <button onclick="plotData()">Plot</button>
-  <div id="plot" style="width: 100%; height: 600px;"></div>
+
+  <button onclick="plotData()">Plot Graph</button>
+  <div id="plot"></div>
 
   <script>
     function parseInput(id) {
       return document.getElementById(id).value.trim().split(/\s+/).map(Number);
     }
 
-    function weightedLinearRegression(x, y, weights) {
+    function weightedLinearRegression(x, y, yErr) {
+      const w = yErr.map(e => 1 / (e * e));
       const sum = arr => arr.reduce((a, b) => a + b, 0);
-      const sumw = sum(weights);
-      const sumwx = sum(x.map((v, i) => v * weights[i]));
-      const sumwy = sum(y.map((v, i) => v * weights[i]));
-      const sumwx2 = sum(x.map((v, i) => v * v * weights[i]));
-      const sumwxy = sum(x.map((v, i) => v * y[i] * weights[i]));
 
-      const xbar = sumwx / sumw;
-      const ybar = sumwy / sumw;
+      const sw = sum(w);
+      const swx = sum(x.map((xi, i) => w[i] * xi));
+      const swy = sum(y.map((yi, i) => w[i] * yi));
+      const swxy = sum(x.map((xi, i) => w[i] * xi * y[i]));
+      const swx2 = sum(x.map((xi, i) => w[i] * xi * xi));
 
-      const slope = (sumwxy - sumwx * ybar) / (sumwx2 - sumwx * xbar);
-      const intercept = ybar - slope * xbar;
+      const delta = sw * swx2 - swx * swx;
+      const slope = (sw * swxy - swx * swy) / delta;
+      const intercept = (swy * swx2 - swx * swxy) / delta;
 
-      return { slope, intercept };
+      // uncertainties
+      const slopeErr = Math.sqrt(sw / delta);
+      const interceptErr = Math.sqrt(swx2 / delta);
+
+      return { slope, intercept, slopeErr, interceptErr };
     }
 
     function plotData() {
       const x = parseInput("xValues");
       const y = parseInput("yValues");
-      const xErr = parseInput("xErrors");
       const yErr = parseInput("yErrors");
 
-      const xLabel = document.getElementById("xLabel").value || "X";
-      const yLabel = document.getElementById("yLabel").value || "Y";
-
-      if (x.length !== y.length ||
-          (xErr.length && xErr.length !== x.length) ||
-          (yErr.length && yErr.length !== y.length)) {
-        alert("Lengths of values and errors must match.");
+      if (x.length !== y.length || yErr.length !== y.length) {
+        alert("All arrays must be of the same length.");
         return;
       }
 
-      const weights = y.map((_, i) => yErr[i] ? 1 / (yErr[i] ** 2) : 1);
-      const { slope, intercept } = weightedLinearRegression(x, y, weights);
-
-      const fitLineX = [Math.min(...x), Math.max(...x)];
-      const fitLineY = fitLineX.map(xVal => slope * xVal + intercept);
-
-      const trace1 = {
+      const tracePoints = {
         x: x,
         y: y,
-        error_x: {
-          type: "data",
-          array: xErr,
-          visible: true
-        },
         error_y: {
           type: "data",
           array: yErr,
-          visible: true
+          visible: true,
+          color: "black",
+          thickness: 1.5,
+          width: 0
         },
         mode: "markers",
         type: "scatter",
-        marker: { color: "blue" },
-        showlegend: false
+        marker: { color: "blue", size: 8 },
+        name: "Data"
       };
 
-      const trace2 = {
-        x: fitLineX,
-        y: fitLineY,
+      const { slope, intercept, slopeErr, interceptErr } = weightedLinearRegression(x, y, yErr);
+
+      const xMin = Math.min(...x);
+      const xMax = Math.max(...x);
+      const fitX = [xMin, xMax];
+      const fitY = fitX.map(xi => slope * xi + intercept);
+
+      const traceFit = {
+        x: fitX,
+        y: fitY,
         mode: "lines",
         type: "scatter",
-        line: { color: "red" },
-        showlegend: false
+        line: { color: "red", width: 2 },
+        name: "Fit"
       };
 
-      const equationText = `y = ${slope.toFixed(3)}x + ${intercept.toFixed(3)}`;
+      const equationText = `y = ${slope.toFixed(3)} ± ${slopeErr.toFixed(3)} x + ${intercept.toFixed(3)} ± ${interceptErr.toFixed(3)}`;
+
       const annotation = {
-        x: 0.05,
-        y: 0.95,
-        xref: "paper",
-        yref: "paper",
+        x: xMin + 0.05 * (xMax - xMin),
+        y: Math.max(...y),
         text: equationText,
         showarrow: false,
         font: {
+          family: "Arial",
           size: 16,
           color: "black"
-        }
+        },
+        bgcolor: "#f3f3f3",
+        bordercolor: "#c7c7c7",
+        borderwidth: 1,
+        borderpad: 4
       };
 
       const layout = {
-        xaxis: { title: xLabel },
-        yaxis: { title: yLabel },
-        annotations: [annotation],
-        showlegend: false
+        margin: { t: 40 },
+        showlegend: false,
+        xaxis: { title: "X" },
+        yaxis: { title: "Y" },
+        annotations: [annotation]
       };
 
-      Plotly.newPlot("plot", [trace1, trace2], layout);
+      Plotly.newPlot("plot", [tracePoints, traceFit], layout, { responsive: true });
     }
   </script>
 </body>
