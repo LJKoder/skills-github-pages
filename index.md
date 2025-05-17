@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <title>Chart with Error Bars</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-error-bars@3.0.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-error-bars@3.0.0/dist/chartjs-plugin-error-bars.min.js"></script>
   <style>
     body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
     input, button { margin: 5px; padding: 8px; width: 250px; }
@@ -42,20 +42,12 @@
         return;
       }
 
-      const data = x.map((xv, i) => ({
-        x: xv,
-        y: y[i],
-        yMin: y[i] - yerr[i],
-        yMax: y[i] + yerr[i]
-      }));
-
       const errorBars = {};
-      x.forEach((xv, i) => {
-        errorBars[i] = {
-          plus: yerr[i],
-          minus: yerr[i]
-        };
+      y.forEach((_, i) => {
+        errorBars[i] = { plus: yerr[i], minus: yerr[i] };
       });
+
+      const data = x.map((xv, i) => ({ x: xv, y: y[i] }));
 
       if (chart) chart.destroy();
 
@@ -63,8 +55,8 @@
         type: "scatter",
         data: {
           datasets: [{
-            label: "Data with Error Bars",
-            data: x.map((xv, i) => ({ x: xv, y: y[i] })),
+            label: "Data with Y Error Bars",
+            data,
             errorBarData: {
               y: errorBars
             },
