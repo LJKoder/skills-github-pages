@@ -140,8 +140,8 @@
         name: '',
         marker: {
           color: 'black',
-          size: 4,
-          symbol: 'x'
+          size: 1
+          
         }
         error_x: xErr.length === x.length ? {
           type: 'data',
