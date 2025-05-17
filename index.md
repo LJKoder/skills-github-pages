@@ -29,7 +29,7 @@
   </style>
 </head>
 <body>
-  <h1>Plot Data with Error Bars and Regression 1</h1>
+  <h1>Plot Data with Error Bars and Regression</h1>
 
   <div class="input-grid">
     <input id="xValues" placeholder="X Values (space-separated)">
@@ -94,23 +94,41 @@
         },
         mode: 'markers',
         name: 'Data',
-        type: 'scatter'
+        type: 'scatter',
+        marker: { color: 'blue' }
       };
 
       const traceLine = {
         x: x,
         y: regressionY,
         mode: 'lines',
-        name: `Fit: y = ${slope.toFixed(2)} ± ${slopeError.toFixed(2)}x + ${intercept.toFixed(2)} ± ${interceptError.toFixed(2)}`,
         line: { color: 'red' },
-        type: 'scatter'
+        type: 'scatter',
+        showlegend: false
       };
+
+      const equationText = `y = ${slope.toFixed(2)} ± ${slopeError.toFixed(2)}x + ${intercept.toFixed(2)} ± ${interceptError.toFixed(2)}`;
 
       const layout = {
         title: `Weighted Linear Regression`,
         xaxis: { title: xLabel },
         yaxis: { title: yLabel },
-        showlegend: true
+        showlegend: false,
+        annotations: [{
+          x: Math.min(...x),
+          y: Math.max(...y),
+          xanchor: 'left',
+          yanchor: 'top',
+          text: equationText,
+          showarrow: false,
+          font: {
+            size: 14,
+            color: 'black'
+          },
+          bgcolor: 'rgba(255,255,255,0.7)',
+          bordercolor: 'black',
+          borderwidth: 1
+        }]
       };
 
       Plotly.newPlot('chart', [traceData, traceLine], layout);
