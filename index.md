@@ -154,7 +154,7 @@
       marker: {
         color: 'black',
         size: 7,
-        symbol: 'circle-open'
+        symbol: 'x-thin-open'
       },
         error_x: xErr.length === x.length ? {
           type: 'data',
