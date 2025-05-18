@@ -63,11 +63,7 @@
       For example: <code>H&lt;sub&gt;2&lt;/sub&gt;O</code> will render as H<sub>2</sub>O.
     </p>
   </div>
-  <!-- Axis labels -->
-  <div><strong>Axis Labels</strong></div><div></div>
-      <p>
-  Note that you can use simple HTML formatting for the axes labels. Use the <code>&lt;sub&gt;</code> and <code>&lt;sup&gt;</code> tags. For example: <code>H&lt;sub&gt;2&lt;/sub&gt;O</code> will render as H<sub>2</sub>O.
-</p>
+
     <div></div>
   <input type="text" id="xLabel" placeholder="X Axis Label">
   <input type="text" id="yLabel" placeholder="Y Axis Label">
