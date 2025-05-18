@@ -50,7 +50,7 @@
 </head>
 <body>
   <h1> Graph with Error Bars and Weighted Regression </h1>
-  <p>This tool lets you input data with optional error bars and calculates a weighted linear regression. You should simply copy-paste data from you excel columns.</p>
+  <p>This tool lets you input data with optional error bars and calculates a weighted linear regression. <p></p> You should simply copy-paste data from you excel columns.</p>
   <div class="input-grid">
   <!-- Axis labels -->
   <div><strong>Axis Labels</strong></div><div></div>
