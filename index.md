@@ -51,7 +51,18 @@
 <body>
   <h1> Graph with Error Bars and Weighted Regression </h1>
   <p>This tool lets you input data with optional error bars and calculates a weighted linear regression. <p></p> You should simply copy-paste data from you excel columns.</p>
-  <div class="input-grid">
+<div class="input-grid">
+  <!-- Axis labels -->
+  <div><strong>Axis Labels</strong></div><div></div><div></div>
+
+  <!-- Description text across all columns -->
+  <div style="grid-column: span 3;">
+    <p>
+      Note that you can use simple HTML formatting for the axes labels.
+      Use the <code>&lt;sub&gt;</code> and <code>&lt;sup&gt;</code> tags.
+      For example: <code>H&lt;sub&gt;2&lt;/sub&gt;O</code> will render as H<sub>2</sub>O.
+    </p>
+  </div>
   <!-- Axis labels -->
   <div><strong>Axis Labels</strong></div><div></div>
       <p>
