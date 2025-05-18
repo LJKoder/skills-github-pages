@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Plotly Weighted Regression with Error Bars</title>
+  <title> Weighted Regression with Error Bars</title>
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <style>
     body {
@@ -49,7 +49,8 @@
   </style>
 </head>
 <body>
-  <h1>Plotly Graph with Error Bars and Weighted Regression 6</h1>
+  <h1> Graph with Error Bars and Weighted Regression </h1>
+  <p>This tool lets you input data with optional error bars and calculates a weighted linear regression. You should simply copy-paste data from you excel columns.</p>
   <div class="input-grid">
   <!-- Axis labels -->
   <div><strong>Axis Labels</strong></div><div></div><div></div>
@@ -73,7 +74,7 @@
   <button onclick="plotData()">Plot</button>
   <button onclick="downloadPlot()">Download Chart</button>
   <div id="plot"></div>
-
+  <p>Note that you can do simple scripting for the axes labels. You can use the <sub> and <sup> commands e.g. H<sub>2</sub>O.</p>
   <script>
     function parseValues(id) {
       const val = document.getElementById(id).value.trim();
