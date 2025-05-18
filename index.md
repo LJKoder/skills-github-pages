@@ -74,7 +74,7 @@
   <button onclick="plotData()">Plot</button>
   <button onclick="downloadPlot()">Download Chart</button>
   <div id="plot"></div>
-  <p>Note that you can do simple scripting for the axes labels. You can use the <sub> and <sup> commands e.g. H<sub>2</sub>O.</p>
+  <p>Note that you can do simple scripting for the axes labels. You can use the '<sub'> and '<sup'> commands e.g. H<sub>2</sub>O.</p>
   <script>
     function parseValues(id) {
       const val = document.getElementById(id).value.trim();
