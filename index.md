@@ -74,7 +74,9 @@
   <button onclick="plotData()">Plot</button>
   <button onclick="downloadPlot()">Download Chart</button>
   <div id="plot"></div>
-  <p>Note that you can do simple scripting for the axes labels. You can use the '<sub'> and '<sup'> commands e.g. H<sub>2</sub>O.</p>
+  <p>
+  Note that you can use simple HTML formatting for the axes labels. Use the <code>&lt;sub&gt;</code> and <code>&lt;sup&gt;</code> tags. For example: <code>H&lt;sub&gt;2&lt;/sub&gt;O</code> will render as H<sub>2</sub>O.
+</p>
   <script>
     function parseValues(id) {
       const val = document.getElementById(id).value.trim();
@@ -141,7 +143,7 @@
         name: '',
       marker: {
         color: 'black',
-        size: 10,
+        size: 7,
         symbol: 'x'
       },
         error_x: xErr.length === x.length ? {
