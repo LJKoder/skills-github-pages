@@ -1,9 +1,9 @@
-
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title> Weighted Regression with Error Bars</title>
+  <title>Monte Carlo Linear Fit with Confidence Band</title>
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <style>
     body {
@@ -12,18 +12,18 @@
       text-align: center;
     }
     .input-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 15px;
-  max-width: 900px;
-  margin: 0 auto 30px;
-}
-.input-grid strong {
-  font-size: 16px;
-  grid-column: span 3;
-  text-align: left;
-  padding-top: 10px;
-}
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 15px;
+      max-width: 900px;
+      margin: 0 auto 30px;
+    }
+    .input-grid strong {
+      font-size: 16px;
+      grid-column: span 3;
+      text-align: left;
+      padding-top: 10px;
+    }
     input[type="text"] {
       padding: 8px;
       font-size: 14px;
@@ -49,39 +49,28 @@
   </style>
 </head>
 <body>
-  <h1> Graph with Error Bars and Weighted Regression </h1>
-  <p>This tool lets you input data with optional error bars and calculates a weighted linear regression. <p></p> You should simply copy-paste data from your excel columns, then press the plot button.</p>
-<div class="input-grid">
-  <!-- Axis labels -->
-  <div><strong>Axis Labels</strong></div><div></div><div></div>
+  <h1>Monte Carlo Linear Regression with Confidence Band</h1>
+  <p>Paste your data from Excel into the boxes below. Includes both x and y errors.</p>
 
-  <!-- Description text across all columns -->
-  <div style="grid-column: span 3;">
-    <p>
-      Note that you can use simple HTML formatting for the axes labels.
-      Use the <code>&lt;sub&gt;</code> and <code>&lt;sup&gt;</code> tags.
-      For example: <code>H&lt;sub&gt;2&lt;/sub&gt;O</code> will render as H<sub>2</sub>O.
-    </p>
+  <div class="input-grid">
+    <div><strong>Axis Labels</strong></div><div></div><div></div>
+    <div style="grid-column: span 3;">
+      <p>You can use HTML like <code>&lt;sub&gt;</code> and <code>&lt;sup&gt;</code> (e.g., H&lt;sub&gt;2&lt;/sub&gt;O → H<sub>2</sub>O).</p>
+    </div>
+    <input type="text" id="xLabel" placeholder="X Axis Label">
+    <input type="text" id="yLabel" placeholder="Y Axis Label">
+    <div></div>
+
+    <div><strong>X Values</strong></div><div></div><div></div>
+    <input type="text" id="xValues" placeholder="X Values (space-separated)">
+    <input type="text" id="xErrors" placeholder="X Errors (optional)">
+    <div></div>
+
+    <div><strong>Y Values</strong></div><div></div><div></div>
+    <input type="text" id="yValues" placeholder="Y Values">
+    <input type="text" id="yErrors" placeholder="Y Errors (optional)">
+    <div></div>
   </div>
-
-  <!-- Axis label inputs -->
-  <input type="text" id="xLabel" placeholder="X Axis Label">
-  <input type="text" id="yLabel" placeholder="Y Axis Label">
-  <div></div>
-
-  <!-- X values -->
-  <div><strong>X Values</strong></div><div></div><div></div>
-  <input type="text" id="xValues" placeholder="X Values (space-separated)">
-  <input type="text" id="xErrors" placeholder="X Errors (optional)">
-  <div></div>
-
-  <!-- Y values -->
-  <div><strong>Y Values</strong></div><div></div><div></div>
-  <input type="text" id="yValues" placeholder="Y Values">
-  <input type="text" id="yErrors" placeholder="Y Errors (optional)">
-  <div></div>
-</div>
-
 
   <button onclick="plotData()">Plot</button>
   <button onclick="downloadPlot()">Download Chart</button>
@@ -91,36 +80,6 @@
     function parseValues(id) {
       const val = document.getElementById(id).value.trim();
       return val === "" ? [] : val.split(/\s+/).map(Number);
-    }
-
-    function weightedLinearRegression(x, y, weights) {
-      const sum = arr => arr.reduce((a, b) => a + b, 0);
-      const w = weights;
-      const wx = x.map((xi, i) => w[i] * xi);
-      const wy = y.map((yi, i) => w[i] * yi);
-      const wxy = x.map((xi, i) => w[i] * xi * y[i]);
-      const wx2 = x.map((xi, i) => w[i] * xi * xi);
-
-      const sumw = sum(w);
-      const sumwx = sum(wx);
-      const sumwy = sum(wy);
-      const sumwxy = sum(wxy);
-      const sumwx2 = sum(wx2);
-
-      const xbar = sumwx / sumw;
-      const ybar = sumwy / sumw;
-
-      const slope = (sumwxy - sumwx * ybar) / (sumwx2 - sumwx * xbar);
-      const intercept = ybar - slope * xbar;
-
-      const n = x.length;
-      const residuals = y.map((yi, i) => yi - (slope * x[i] + intercept));
-      const variance = sum(residuals.map((r, i) => w[i] * r * r)) / (n - 2);
-
-      const slopeUncertainty = Math.sqrt(variance / (sumwx2 - sumwx * xbar));
-      const interceptUncertainty = Math.sqrt(variance * (1 / sumw + xbar * xbar / (sumwx2 - sumwx * xbar)));
-
-      return { slope, intercept, slopeUncertainty, interceptUncertainty };
     }
 
     function plotData() {
@@ -136,26 +95,80 @@
         return;
       }
 
-      const weights = yErr.length === y.length ? yErr.map(e => 1 / (e * e)) : Array(x.length).fill(1);
+      const N = 10000;
+      const slopes = [], intercepts = [];
 
-      const { slope, intercept, slopeUncertainty, interceptUncertainty } = weightedLinearRegression(x, y, weights);
+      function randn_bm() {
+        let u = 0, v = 0;
+        while (u === 0) u = Math.random();
+        while (v === 0) v = Math.random();
+        return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+      }
 
-      const lineX = [Math.min(...x), Math.max(...x)];
-      const lineY = lineX.map(xi => slope * xi + intercept);
+      function linregress(xs, ys) {
+        const n = xs.length;
+        const xMean = xs.reduce((a, b) => a + b, 0) / n;
+        const yMean = ys.reduce((a, b) => a + b, 0) / n;
+        let num = 0, den = 0;
+        for (let i = 0; i < n; i++) {
+          num += (xs[i] - xMean) * (ys[i] - yMean);
+          den += (xs[i] - xMean) ** 2;
+        }
+        const slope = num / den;
+        const intercept = yMean - slope * xMean;
+        return { slope, intercept };
+      }
+
+      for (let i = 0; i < N; i++) {
+        const xSim = x.map((xi, j) => xi + randn_bm() * (xErr[j] || 0));
+        const ySim = y.map((yi, j) => yi + randn_bm() * (yErr[j] || 0));
+        const { slope, intercept } = linregress(xSim, ySim);
+        if (isFinite(slope) && isFinite(intercept)) {
+          slopes.push(slope);
+          intercepts.push(intercept);
+        }
+      }
+
+      const xRange = [];
+      const xmin = Math.min(...x), xmax = Math.max(...x);
+      const steps = 100;
+      const step = (xmax - xmin) / steps;
+      for (let i = 0; i <= steps; i++) {
+        xRange.push(xmin + i * step);
+      }
+
+      const lower = [], upper = [], meanLine = [];
+      for (let xi of xRange) {
+        const ySamples = slopes.map((m, i) => m * xi + intercepts[i]);
+        ySamples.sort((a, b) => a - b);
+        const lo = ySamples[Math.floor(0.025 * ySamples.length)];
+        const hi = ySamples[Math.floor(0.975 * ySamples.length)];
+        const avg = ySamples.reduce((a, b) => a + b, 0) / ySamples.length;
+        lower.push(lo);
+        upper.push(hi);
+        meanLine.push(avg);
+      }
+
+      const mean = arr => arr.reduce((a, b) => a + b, 0) / arr.length;
+      const std = arr => {
+        const m = mean(arr);
+        return Math.sqrt(arr.reduce((s, v) => s + (v - m) ** 2, 0) / (arr.length - 1));
+      };
+      const slopeStat = { mean: mean(slopes), std: std(slopes) };
+      const interceptStat = { mean: mean(intercepts), std: std(intercepts) };
+
+      const annotationText = `y = (${slopeStat.mean.toExponential(3)} ± ${slopeStat.std.toExponential(3)})x + (${interceptStat.mean.toExponential(3)} ± ${interceptStat.std.toExponential(3)})`;
 
       const data = [];
 
+      // Original data points with error bars
       data.push({
         x: x,
         y: y,
         mode: 'markers',
         type: 'scatter',
-        name: '',
-      marker: {
-        color: 'black',
-        size: 7,
-        symbol: 'x-thin-open'
-      },
+        name: 'Data',
+        marker: { color: 'black', size: 7, symbol: 'x-thin-open' },
         error_x: xErr.length === x.length ? {
           type: 'data',
           array: xErr,
@@ -168,17 +181,27 @@
         } : undefined
       });
 
+      // Confidence band
       data.push({
-        x: lineX,
-        y: lineY,
-        mode: 'lines',
+        x: [...xRange, ...xRange.slice().reverse()],
+        y: [...upper, ...lower.slice().reverse()],
+        fill: 'toself',
+        fillcolor: 'rgba(255, 0, 0, 0.2)',
+        line: { color: 'transparent' },
+        name: '95% Confidence Band',
         type: 'scatter',
-        name: '',
-        line: { color: 'red', width: 2 }
+        showlegend: false
       });
 
-const annotationText = `y = (${slope.toExponential(3)} ± ${slopeUncertainty.toExponential(3)})x + (${intercept.toExponential(3)} ± ${interceptUncertainty.toExponential(3)})`;
-
+      // Mean regression line
+      data.push({
+        x: xRange,
+        y: meanLine,
+        mode: 'lines',
+        type: 'scatter',
+        name: 'Mean Fit',
+        line: { color: 'red', width: 2 }
+      });
 
       const layout = {
         title: '',
@@ -200,7 +223,7 @@ const annotationText = `y = (${slope.toExponential(3)} ± ${slopeUncertainty.toE
     }
 
     function downloadPlot() {
-      Plotly.downloadImage('plot', { format: 'png', filename: 'plot_with_regression' });
+      Plotly.downloadImage('plot', { format: 'png', filename: 'monte_carlo_regression' });
     }
   </script>
 </body>
