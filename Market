@@ -1,0 +1,6227 @@
+# =============================================================================
+#
+# MASTER BASIN / RUN ANALYSIS — VERSION 2
+#
+# INPUT:
+#     master_weekly_basin_dataset.csv
+#
+# PURPOSE:
+#     Investigate whether large upward runs emerge from identifiable
+#     structural basins, and determine whether the trajectory into/out
+#     of the basin contains predictive information.
+#
+#     VERSION 2 ADDITION:
+#     -------------------
+#     Causal volatility analysis.
+#
+#     We investigate whether successful and failed basins differ in:
+#
+#         1. Absolute volatility
+#         2. Volatility at 10 / 20 / 52 week horizons
+#         3. Change in volatility
+#         4. Volatility trajectory before the basin
+#
+# IMPORTANT CAUSALITY RULE
+# ------------------------
+#
+# The structural minimum and subsequent maximum are RETROSPECTIVE labels.
+# They are used ONLY to define successful/failed events.
+#
+# All state variables measured at a particular date are backward-looking:
+#
+#     smooth
+#     velocity
+#     acceleration
+#     acceleration_smooth
+#     weekly_log_range
+#     weekly_log_range_smooth
+#     range_to_velocity
+#     volatility_10w
+#     volatility_20w
+#     volatility_52w
+#     volatility changes
+#
+# Rolling normalization also uses only information available up to
+# the observation date.
+#
+# NO FUTURE DATA IS USED TO CALCULATE:
+#
+#     velocity
+#     acceleration
+#     range
+#     volatility
+#     normalized state variables
+#
+# The future maximum is used ONLY for retrospective success classification.
+#
+# =============================================================================
+
+
+import os
+import warnings
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+warnings.filterwarnings("ignore")
+
+
+# =============================================================================
+# CONFIGURATION
+# =============================================================================
+
+INPUT_FILE = "/content/master_weekly_basin_dataset.csv"
+
+OUTPUT_DIR = "/content/basin_analysis"
+
+os.makedirs(
+    OUTPUT_DIR,
+    exist_ok=True
+)
+
+
+# =============================================================================
+# BASIN DETECTION
+# =============================================================================
+
+MIN_SEPARATION_WEEKS = 10
+
+# Structural signal is already smoothed in the master file.
+#
+# We nevertheless allow an additional very light smoothing ONLY for locating
+# structural extrema.
+#
+# This is NOT used for causal features.
+
+STRUCTURAL_SMOOTH_PERIOD = 1
+
+
+# =============================================================================
+# FUTURE RUN CLASSIFICATION
+# =============================================================================
+
+MAX_RUN_WEEKS = 36
+
+SUCCESS_THRESHOLDS = [
+    0.10,
+    0.20,
+    0.30,
+    0.50,
+    1.00
+]
+
+PRIMARY_SUCCESS_THRESHOLD = 0.30
+
+
+# =============================================================================
+# ALIGNMENT AROUND MINIMUM
+# =============================================================================
+
+PRE_WINDOW_WEEKS = 20
+
+POST_WINDOW_WEEKS = 20
+
+
+# =============================================================================
+# EARLY RECOGNITION WINDOWS
+# =============================================================================
+
+EARLY_RECOGNITION_WEEKS = [
+    20,
+    15,
+    10,
+    8,
+    6,
+    4,
+    3,
+    2,
+    1,
+    0
+]
+
+
+# =============================================================================
+# CAUSAL NORMALIZATION
+# =============================================================================
+
+NORMALIZATION_WINDOW = 20
+
+NORMALIZATION_FLOOR = 1e-8
+
+
+# =============================================================================
+# BASIN SYMMETRY WINDOWS
+# =============================================================================
+
+SYMMETRY_WINDOW = 10
+
+
+# =============================================================================
+# VOLATILITY WINDOWS
+# =============================================================================
+#
+# These are deliberately kept separate from the basin definition.
+#
+# Volatility is calculated from weekly log returns:
+#
+#     r_t = log(P_t) - log(P_(t-1))
+#
+# and rolling standard deviation.
+#
+# At time t, volatility only uses returns through t.
+#
+# =============================================================================
+
+VOLATILITY_WINDOWS = [
+    10,
+    20,
+    52
+]
+
+
+# =============================================================================
+# LOAD MASTER DATASET
+# =============================================================================
+
+print("=" * 80)
+print("MASTER BASIN / RUN ANALYSIS — VERSION 2")
+print("=" * 80)
+
+print("\nInput file:")
+print(INPUT_FILE)
+
+
+if not os.path.exists(INPUT_FILE):
+
+    raise FileNotFoundError(
+        f"\nCould not find:\n{INPUT_FILE}\n\n"
+        "Make sure the master dataset was created first."
+    )
+
+
+df = pd.read_csv(INPUT_FILE)
+
+print(f"\nRows loaded: {len(df):,}")
+print(f"Columns loaded: {len(df.columns)}")
+
+
+# =============================================================================
+# REQUIRED COLUMNS
+# =============================================================================
+
+REQUIRED_COLUMNS = [
+
+    "Ticker",
+    "Date",
+
+    "weekly_value",
+    "weekly_high",
+    "weekly_low",
+
+    "log_weekly_value",
+    "log_weekly_high",
+    "log_weekly_low",
+
+    "smooth",
+    "smooth_high",
+    "smooth_low",
+
+    "velocity",
+    "acceleration",
+    "acceleration_smooth",
+
+    "weekly_log_range",
+    "weekly_log_range_smooth",
+
+    "range_to_velocity",
+    "range_to_velocity_smooth"
+]
+
+
+missing = [
+    c
+    for c in REQUIRED_COLUMNS
+    if c not in df.columns
+]
+
+
+if missing:
+
+    raise KeyError(
+        "\nThe following required columns are missing:\n"
+        + "\n".join(missing)
+    )
+
+
+# =============================================================================
+# CLEAN DATA
+# =============================================================================
+
+df["Date"] = pd.to_datetime(
+    df["Date"],
+    errors="coerce"
+)
+
+
+numeric_columns = [
+    c
+    for c in REQUIRED_COLUMNS
+    if c not in ["Ticker", "Date"]
+]
+
+
+for c in numeric_columns:
+
+    df[c] = pd.to_numeric(
+        df[c],
+        errors="coerce"
+    )
+
+
+df = (
+    df
+    .dropna(
+        subset=[
+            "Ticker",
+            "Date",
+            "smooth"
+        ]
+    )
+    .sort_values(
+        ["Ticker", "Date"]
+    )
+    .reset_index(drop=True)
+)
+
+
+print("\nCleaned dataset:")
+
+print(
+    f"Rows:       {len(df):,}"
+)
+
+print(
+    f"Tickers:    {df['Ticker'].nunique():,}"
+)
+
+print(
+    f"First date: {df['Date'].min()}"
+)
+
+print(
+    f"Last date:  {df['Date'].max()}"
+)
+
+
+# =============================================================================
+# DATA QUALITY
+# =============================================================================
+
+ticker_counts = (
+    df
+    .groupby("Ticker")
+    .size()
+    .sort_values()
+)
+
+
+print("\nTicker observation counts:")
+print(ticker_counts.describe())
+
+
+print("\nMissing values:")
+
+print(
+    df[REQUIRED_COLUMNS]
+    .isna()
+    .sum()
+    .sort_values(
+        ascending=False
+    )
+    .head(15)
+)
+
+
+# =============================================================================
+# CAUSAL VOLATILITY
+# =============================================================================
+#
+# Weekly log return:
+#
+#     r_t = log(P_t) - log(P_(t-1))
+#
+# Rolling volatility:
+#
+#     std(r_(t-N+1) ... r_t)
+#
+# This is completely causal.
+#
+# No information after date t is used.
+#
+# We calculate:
+#
+#     10-week volatility
+#     20-week volatility
+#     52-week volatility
+#
+# and their first differences.
+#
+# =============================================================================
+
+print("\n" + "=" * 80)
+print("CALCULATING CAUSAL VOLATILITY")
+print("=" * 80)
+
+
+def add_causal_volatility(g):
+
+    g = (
+        g
+        .sort_values("Date")
+        .copy()
+    )
+
+    # -------------------------------------------------------------------------
+    # Weekly log return
+    # -------------------------------------------------------------------------
+
+    g["weekly_log_return"] = (
+        g["log_weekly_value"]
+        .diff()
+    )
+
+    # -------------------------------------------------------------------------
+    # Rolling volatility
+    # -------------------------------------------------------------------------
+
+    for window in VOLATILITY_WINDOWS:
+
+        g[f"volatility_{window}w"] = (
+
+            g["weekly_log_return"]
+            .rolling(
+                window=window,
+                min_periods=max(
+                    5,
+                    window // 2
+                )
+            )
+            .std()
+        )
+
+    # -------------------------------------------------------------------------
+    # Volatility change
+    # -------------------------------------------------------------------------
+
+    for window in VOLATILITY_WINDOWS:
+
+        volatility = (
+            g[f"volatility_{window}w"]
+        )
+
+        g[
+            f"volatility_{window}w_change"
+        ] = (
+            volatility.diff()
+        )
+
+        # Percentage change is retained as a diagnostic.
+        # It can become unstable when volatility is extremely small,
+        # so it is NOT used as the primary measure.
+
+        g[
+            f"volatility_{window}w_pct_change"
+        ] = (
+            volatility.pct_change()
+        )
+
+    return g
+
+
+df = (
+    df
+    .groupby(
+        "Ticker",
+        group_keys=False
+    )
+    .apply(
+        add_causal_volatility
+    )
+    .reset_index(drop=True)
+)
+
+
+print("Causal volatility calculation complete.")
+
+
+# =============================================================================
+# OPTIONAL STRUCTURAL SMOOTHING
+# =============================================================================
+
+def supersmoother(
+    series,
+    period=10
+):
+
+    series = (
+        pd.Series(series)
+        .astype(float)
+    )
+
+    vals = series.values
+
+    n = len(vals)
+
+    out = np.full(
+        n,
+        np.nan
+    )
+
+    if n == 0:
+
+        return pd.Series(
+            out,
+            index=series.index
+        )
+
+    if period <= 1:
+
+        return series.copy()
+
+    a1 = np.exp(
+        -np.pi
+        * np.sqrt(2)
+        / period
+    )
+
+    b1 = (
+        2.0
+        * a1
+        * np.cos(
+            np.sqrt(2)
+            * np.pi
+            / period
+        )
+    )
+
+    c3 = -a1 * a1
+
+    c2 = b1
+
+    c1 = (
+        1.0
+        - c2
+        - c3
+    )
+
+    for i in range(n):
+
+        if i == 0:
+
+            out[i] = vals[i]
+
+        elif i == 1:
+
+            out[i] = vals[i]
+
+        else:
+
+            if not np.isfinite(
+                vals[i]
+            ):
+
+                out[i] = out[i - 1]
+
+            else:
+
+                price_avg = (
+                    vals[i]
+                    + vals[i - 1]
+                ) / 2.0
+
+                out[i] = (
+
+                    c1
+                    * price_avg
+
+                    + c2
+                    * out[i - 1]
+
+                    + c3
+                    * out[i - 2]
+                )
+
+    return pd.Series(
+        out,
+        index=series.index
+    )
+
+
+# =============================================================================
+# CAUSAL NORMALIZATION
+# =============================================================================
+
+def add_causal_normalization(g):
+
+    g = g.copy()
+
+    # -------------------------------------------------------------------------
+    # Velocity scale
+    # -------------------------------------------------------------------------
+
+    velocity_abs = (
+        g["velocity"]
+        .abs()
+    )
+
+    velocity_scale = (
+
+        velocity_abs
+        .rolling(
+            NORMALIZATION_WINDOW,
+            min_periods=5
+        )
+        .median()
+    )
+
+    velocity_scale = (
+        velocity_scale
+        .clip(
+            lower=NORMALIZATION_FLOOR
+        )
+    )
+
+    # -------------------------------------------------------------------------
+    # Acceleration scale
+    # -------------------------------------------------------------------------
+
+    acceleration_abs = (
+        g["acceleration"]
+        .abs()
+    )
+
+    acceleration_scale = (
+
+        acceleration_abs
+        .rolling(
+            NORMALIZATION_WINDOW,
+            min_periods=5
+        )
+        .median()
+    )
+
+    acceleration_scale = (
+        acceleration_scale
+        .clip(
+            lower=NORMALIZATION_FLOOR
+        )
+    )
+
+    # -------------------------------------------------------------------------
+    # Normalized variables
+    # -------------------------------------------------------------------------
+
+    g["velocity_scale"] = (
+        velocity_scale
+    )
+
+    g["acceleration_scale"] = (
+        acceleration_scale
+    )
+
+    g["velocity_normalized"] = (
+        g["velocity"]
+        / velocity_scale
+    )
+
+    g["acceleration_normalized"] = (
+        g["acceleration"]
+        / acceleration_scale
+    )
+
+    # -------------------------------------------------------------------------
+    # Normalized range
+    # -------------------------------------------------------------------------
+
+    range_scale = (
+
+        g["weekly_log_range"]
+        .rolling(
+            NORMALIZATION_WINDOW,
+            min_periods=5
+        )
+        .median()
+        .clip(
+            lower=NORMALIZATION_FLOOR
+        )
+    )
+
+    g["range_scale"] = (
+        range_scale
+    )
+
+    g["range_normalized"] = (
+        g["weekly_log_range"]
+        / range_scale
+    )
+
+    # -------------------------------------------------------------------------
+    # Range / velocity
+    # -------------------------------------------------------------------------
+
+    ratio_abs = (
+        g["range_to_velocity"]
+        .abs()
+    )
+
+    ratio_scale = (
+
+        ratio_abs
+        .rolling(
+            NORMALIZATION_WINDOW,
+            min_periods=5
+        )
+        .median()
+        .clip(
+            lower=NORMALIZATION_FLOOR
+        )
+    )
+
+    g["range_velocity_scale"] = (
+        ratio_scale
+    )
+
+    g["range_velocity_normalized"] = (
+
+        g["range_to_velocity"]
+        / ratio_scale
+    )
+
+    return g
+
+
+print(
+    "\nAdding causal normalized variables..."
+)
+
+
+df = (
+    df
+    .groupby(
+        "Ticker",
+        group_keys=False
+    )
+    .apply(
+        add_causal_normalization
+    )
+    .reset_index(drop=True)
+)
+
+
+print(
+    "Normalization complete."
+)
+
+
+# =============================================================================
+# LOCAL EXTREMA
+# =============================================================================
+
+def find_local_extrema(
+    values,
+    min_separation=10
+):
+
+    s = (
+        pd.Series(values)
+        .reset_index(drop=True)
+    )
+
+    minima = []
+
+    maxima = []
+
+    last_min = (
+        -min_separation
+    )
+
+    last_max = (
+        -min_separation
+    )
+
+    for i in range(
+        1,
+        len(s) - 1
+    ):
+
+        if not np.isfinite(
+            s.iloc[i - 1]
+        ):
+            continue
+
+        if not np.isfinite(
+            s.iloc[i]
+        ):
+            continue
+
+        if not np.isfinite(
+            s.iloc[i + 1]
+        ):
+            continue
+
+        is_min = (
+
+            s.iloc[i]
+            <= s.iloc[i - 1]
+
+            and
+
+            s.iloc[i]
+            < s.iloc[i + 1]
+        )
+
+        is_max = (
+
+            s.iloc[i]
+            >= s.iloc[i - 1]
+
+            and
+
+            s.iloc[i]
+            > s.iloc[i + 1]
+        )
+
+        if is_min:
+
+            if (
+                i - last_min
+                >= min_separation
+            ):
+
+                minima.append(i)
+
+                last_min = i
+
+        if is_max:
+
+            if (
+                i - last_max
+                >= min_separation
+            ):
+
+                maxima.append(i)
+
+                last_max = i
+
+    return minima, maxima
+
+
+# =============================================================================
+# FIND BASIN EVENTS
+# =============================================================================
+
+print(
+    "\n"
+    + "=" * 80
+)
+
+print(
+    "IDENTIFYING STRUCTURAL BASINS"
+)
+
+print(
+    "=" * 80
+)
+
+
+events = []
+
+
+for ticker, g in df.groupby("Ticker"):
+
+    g = (
+        g
+        .sort_values("Date")
+        .reset_index(drop=True)
+    )
+
+    if len(g) < 40:
+        continue
+
+    # -------------------------------------------------------------------------
+    # Structural signal
+    # -------------------------------------------------------------------------
+
+    if STRUCTURAL_SMOOTH_PERIOD > 1:
+
+        structural_signal = (
+            supersmoother(
+                g["smooth"],
+                STRUCTURAL_SMOOTH_PERIOD
+            )
+        )
+
+    else:
+
+        structural_signal = (
+            g["smooth"]
+            .copy()
+        )
+
+    minima, maxima = (
+        find_local_extrema(
+            structural_signal.values,
+            MIN_SEPARATION_WEEKS
+        )
+    )
+
+    # -------------------------------------------------------------------------
+    # Examine every minimum
+    # -------------------------------------------------------------------------
+
+    for mi in minima:
+
+        # ---------------------------------------------------------------------
+        # Previous maximum
+        # ---------------------------------------------------------------------
+
+        previous_maxima = [
+            x
+            for x in maxima
+            if x < mi
+        ]
+
+        if previous_maxima:
+
+            previous_max = max(
+                previous_maxima
+            )
+
+        else:
+
+            previous_max = None
+
+        # ---------------------------------------------------------------------
+        # Subsequent maxima
+        # ---------------------------------------------------------------------
+
+        future_maxima = [
+
+            x
+            for x in maxima
+
+            if (
+                x > mi
+                and
+                x <= mi + MAX_RUN_WEEKS
+            )
+        ]
+
+        if not future_maxima:
+            continue
+
+        # Highest structural maximum
+
+        subsequent_max = max(
+
+            future_maxima,
+
+            key=lambda x:
+            structural_signal.iloc[x]
+        )
+
+        # ---------------------------------------------------------------------
+        # Structural values
+        # ---------------------------------------------------------------------
+
+        minimum_value = (
+            structural_signal.iloc[mi]
+        )
+
+        maximum_value = (
+            structural_signal.iloc[
+                subsequent_max
+            ]
+        )
+
+        # ---------------------------------------------------------------------
+        # Future rise
+        # ---------------------------------------------------------------------
+
+        future_log_rise = (
+
+            maximum_value
+            - minimum_value
+        )
+
+        future_return = (
+
+            np.exp(
+                future_log_rise
+            )
+            - 1.0
+        )
+
+        if not np.isfinite(
+            future_return
+        ):
+            continue
+
+        if future_return <= 0:
+            continue
+
+        # ---------------------------------------------------------------------
+        # Previous peak / basin depth
+        # ---------------------------------------------------------------------
+
+        if previous_max is not None:
+
+            previous_max_value = (
+
+                structural_signal.iloc[
+                    previous_max
+                ]
+            )
+
+            descent_log = (
+
+                previous_max_value
+                - minimum_value
+            )
+
+            descent_return = (
+
+                np.exp(
+                    descent_log
+                )
+                - 1.0
+            )
+
+            weeks_from_previous_peak = (
+                mi - previous_max
+            )
+
+        else:
+
+            previous_max_value = np.nan
+
+            descent_return = np.nan
+
+            weeks_from_previous_peak = np.nan
+
+        # ---------------------------------------------------------------------
+        # Event row
+        # ---------------------------------------------------------------------
+
+        row = {
+
+            "EventID":
+                len(events),
+
+            "Ticker":
+                ticker,
+
+            "MinimumIndex":
+                mi,
+
+            "MinimumDate":
+                g.loc[
+                    mi,
+                    "Date"
+                ],
+
+            "PreviousMaximumIndex":
+                previous_max,
+
+            "PreviousMaximumDate":
+                (
+                    g.loc[
+                        previous_max,
+                        "Date"
+                    ]
+                    if previous_max is not None
+                    else pd.NaT
+                ),
+
+            "MaximumIndex":
+                subsequent_max,
+
+            "MaximumDate":
+                g.loc[
+                    subsequent_max,
+                    "Date"
+                ],
+
+            "WeeksToMaximum":
+                subsequent_max - mi,
+
+            "FutureReturn":
+                future_return,
+
+            "FutureLogRise":
+                future_log_rise,
+
+            "DescentReturn":
+                descent_return,
+
+            "WeeksFromPreviousPeak":
+                weeks_from_previous_peak,
+
+            "MinimumSmooth":
+                minimum_value,
+
+            # -----------------------------------------------------------------
+            # Causal trajectory state
+            # -----------------------------------------------------------------
+
+            "Velocity":
+                g.loc[
+                    mi,
+                    "velocity"
+                ],
+
+            "Acceleration":
+                g.loc[
+                    mi,
+                    "acceleration"
+                ],
+
+            "AccelerationSmooth":
+                g.loc[
+                    mi,
+                    "acceleration_smooth"
+                ],
+
+            "VelocityNormalized":
+                g.loc[
+                    mi,
+                    "velocity_normalized"
+                ],
+
+            "AccelerationNormalized":
+                g.loc[
+                    mi,
+                    "acceleration_normalized"
+                ],
+
+            # -----------------------------------------------------------------
+            # Causal range state
+            # -----------------------------------------------------------------
+
+            "WeeklyRange":
+                g.loc[
+                    mi,
+                    "weekly_log_range"
+                ],
+
+            "RangeNormalized":
+                g.loc[
+                    mi,
+                    "range_normalized"
+                ],
+
+            "RangeVelocity":
+                g.loc[
+                    mi,
+                    "range_to_velocity"
+                ],
+
+            "RangeVelocityNormalized":
+                g.loc[
+                    mi,
+                    "range_velocity_normalized"
+                ],
+
+            # -----------------------------------------------------------------
+            # NEW: causal volatility state
+            # -----------------------------------------------------------------
+
+            "Volatility10w":
+                g.loc[
+                    mi,
+                    "volatility_10w"
+                ],
+
+            "Volatility20w":
+                g.loc[
+                    mi,
+                    "volatility_20w"
+                ],
+
+            "Volatility52w":
+                g.loc[
+                    mi,
+                    "volatility_52w"
+                ],
+
+            "Volatility10wChange":
+                g.loc[
+                    mi,
+                    "volatility_10w_change"
+                ],
+
+            "Volatility20wChange":
+                g.loc[
+                    mi,
+                    "volatility_20w_change"
+                ],
+
+            "Volatility52wChange":
+                g.loc[
+                    mi,
+                    "volatility_52w_change"
+                ]
+        }
+
+        events.append(row)
+
+
+events = pd.DataFrame(events)
+
+
+if events.empty:
+
+    raise RuntimeError(
+        "\nNo basin events were identified."
+    )
+
+
+print(
+    f"\nCandidate basins identified: "
+    f"{len(events):,}"
+)
+
+print(
+    f"Tickers represented: "
+    f"{events['Ticker'].nunique():,}"
+)
+
+
+# =============================================================================
+# SUCCESS CLASSIFICATION
+# =============================================================================
+
+print(
+    "\n"
+    + "=" * 80
+)
+
+print(
+    "SUCCESS CLASSIFICATION"
+)
+
+print(
+    "=" * 80
+)
+
+
+for threshold in SUCCESS_THRESHOLDS:
+
+    column = (
+        f"Success_{int(threshold * 100)}"
+    )
+
+    events[column] = (
+
+        events["FutureReturn"]
+        >= threshold
+    )
+
+
+events["Success"] = (
+
+    events["FutureReturn"]
+    >= PRIMARY_SUCCESS_THRESHOLD
+)
+
+
+for threshold in SUCCESS_THRESHOLDS:
+
+    column = (
+        f"Success_{int(threshold * 100)}"
+    )
+
+    n = (
+        events[column]
+        .sum()
+    )
+
+    pct = (
+
+        100
+        * n
+        / len(events)
+    )
+
+    print(
+
+        f">= {threshold * 100:5.0f}% : "
+        f"{n:6,} "
+        f"({pct:6.2f}%)"
+    )
+
+
+# =============================================================================
+# BASIC BASIN STATE
+# =============================================================================
+
+events["VelocityNegative"] = (
+    events["Velocity"] < 0
+)
+
+events["VelocityPositive"] = (
+    events["Velocity"] > 0
+)
+
+events["AccelerationPositive"] = (
+    events["Acceleration"] > 0
+)
+
+events["AccelerationNegative"] = (
+    events["Acceleration"] < 0
+)
+
+events[
+    "NormalizedVelocityStrongNegative"
+] = (
+
+    events["VelocityNormalized"]
+    < -1
+)
+
+events[
+    "NormalizedAccelerationStrongPositive"
+] = (
+
+    events["AccelerationNormalized"]
+    > 1
+)
+
+
+events["VAQuadrant"] = np.select(
+
+    [
+
+        (
+            (events["Velocity"] < 0)
+            &
+            (events["Acceleration"] < 0)
+        ),
+
+        (
+            (events["Velocity"] < 0)
+            &
+            (events["Acceleration"] > 0)
+        ),
+
+        (
+            (events["Velocity"] > 0)
+            &
+            (events["Acceleration"] < 0)
+        ),
+
+        (
+            (events["Velocity"] > 0)
+            &
+            (events["Acceleration"] > 0)
+        )
+    ],
+
+    [
+        "Negative V / Negative A",
+        "Negative V / Positive A",
+        "Positive V / Negative A",
+        "Positive V / Positive A"
+    ],
+
+    default="Zero / Boundary"
+)
+
+
+# =============================================================================
+# BASIN STATE SUMMARY
+# =============================================================================
+
+print(
+    "\n"
+    + "=" * 80
+)
+
+print(
+    "BASIN STATE SUMMARY"
+)
+
+print(
+    "=" * 80
+)
+
+
+state_summary = (
+
+    events
+    .groupby("VAQuadrant")
+    .agg(
+
+        N=(
+            "Success",
+            "size"
+        ),
+
+        MeanFutureReturn=(
+            "FutureReturn",
+            "mean"
+        ),
+
+        MedianFutureReturn=(
+            "FutureReturn",
+            "median"
+        ),
+
+        SuccessRate=(
+            "Success",
+            "mean"
+        ),
+
+        MeanVelocity=(
+            "Velocity",
+            "mean"
+        ),
+
+        MeanAcceleration=(
+            "Acceleration",
+            "mean"
+        )
+    )
+)
+
+
+state_summary["SuccessRate"] *= 100
+
+
+print(
+    state_summary
+    .sort_values(
+        "SuccessRate",
+        ascending=False
+    )
+)
+
+
+# =============================================================================
+# GENERIC QUINTILE FUNCTION
+# =============================================================================
+
+def safe_qcut(
+    series,
+    q,
+    prefix
+):
+
+    x = pd.to_numeric(
+        series,
+        errors="coerce"
+    )
+
+    result = pd.Series(
+        index=series.index,
+        dtype="object"
+    )
+
+    valid = x.notna()
+
+    if valid.sum() < q:
+
+        result.loc[valid] = "All"
+
+        return result
+
+    try:
+
+        cats = pd.qcut(
+            x.loc[valid],
+            q=q,
+            duplicates="drop"
+        )
+
+        n_bins = len(
+            cats.cat.categories
+        )
+
+        labels = [
+
+            f"{prefix}{i + 1}"
+
+            for i in range(n_bins)
+        ]
+
+        cats = (
+            cats
+            .cat
+            .rename_categories(labels)
+        )
+
+        result.loc[valid] = (
+            cats.astype(str)
+        )
+
+    except Exception:
+
+        ranks = (
+
+            x.loc[valid]
+            .rank(
+                method="first",
+                pct=True
+            )
+        )
+
+        result.loc[valid] = (
+
+            np.ceil(
+                ranks * q
+            )
+            .clip(
+                1,
+                q
+            )
+            .astype(int)
+            .map(
+                lambda z:
+                f"{prefix}{z}"
+            )
+        )
+
+    return result
+
+
+# =============================================================================
+# QUINTILE ANALYSIS
+# =============================================================================
+
+QUINTILE_VARIABLES = [
+
+    (
+        "Velocity",
+        "VelocityQ",
+        "V"
+    ),
+
+    (
+        "Acceleration",
+        "AccelerationQ",
+        "A"
+    ),
+
+    (
+        "VelocityNormalized",
+        "VelocityNormQ",
+        "VN"
+    ),
+
+    (
+        "AccelerationNormalized",
+        "AccelerationNormQ",
+        "AN"
+    ),
+
+    (
+        "WeeklyRange",
+        "RangeQ",
+        "R"
+    ),
+
+    (
+        "RangeVelocity",
+        "RangeVelocityQ",
+        "RV"
+    ),
+
+    (
+        "RangeVelocityNormalized",
+        "RangeVelocityNormQ",
+        "RVN"
+    ),
+
+    # -------------------------------------------------------------------------
+    # NEW VOLATILITY QUINTILES
+    # -------------------------------------------------------------------------
+
+    (
+        "Volatility10w",
+        "Volatility10wQ",
+        "V10"
+    ),
+
+    (
+        "Volatility20w",
+        "Volatility20wQ",
+        "V20"
+    ),
+
+    (
+        "Volatility52w",
+        "Volatility52wQ",
+        "V52"
+    ),
+
+    (
+        "Volatility10wChange",
+        "Volatility10wChangeQ",
+        "DV10"
+    ),
+
+    (
+        "Volatility20wChange",
+        "Volatility20wChangeQ",
+        "DV20"
+    ),
+
+    (
+        "Volatility52wChange",
+        "Volatility52wChangeQ",
+        "DV52"
+    )
+]
+
+
+for variable, output_column, prefix in QUINTILE_VARIABLES:
+
+    events[output_column] = (
+        safe_qcut(
+            events[variable],
+            5,
+            prefix
+        )
+    )
+
+
+# =============================================================================
+# QUINTILE SUMMARY FUNCTION
+# =============================================================================
+
+def quintile_summary(
+    events,
+    group_column
+):
+
+    result = (
+
+        events
+        .groupby(
+            group_column,
+            observed=True
+        )
+        .agg(
+
+            N=(
+                "FutureReturn",
+                "size"
+            ),
+
+            MeanReturn=(
+                "FutureReturn",
+                "mean"
+            ),
+
+            MedianReturn=(
+                "FutureReturn",
+                "median"
+            ),
+
+            SuccessRate=(
+                "Success",
+                "mean"
+            ),
+
+            MeanVelocity=(
+                "Velocity",
+                "mean"
+            ),
+
+            MeanAcceleration=(
+                "Acceleration",
+                "mean"
+            )
+        )
+    )
+
+    result["SuccessRate"] *= 100
+
+    return result
+
+
+# =============================================================================
+# VELOCITY QUINTILES
+# =============================================================================
+
+velocity_summary = (
+    quintile_summary(
+        events,
+        "VelocityQ"
+    )
+)
+
+
+print(
+    "\n"
+    + "=" * 80
+)
+
+print(
+    "VELOCITY QUINTILES"
+)
+
+print(
+    "=" * 80
+)
+
+print(
+    velocity_summary
+)
+
+
+velocity_summary.to_csv(
+    os.path.join(
+        OUTPUT_DIR,
+        "velocity_quintiles.csv"
+    )
+)
+
+
+# =============================================================================
+# ACCELERATION QUINTILES
+# =============================================================================
+
+acceleration_summary = (
+    quintile_summary(
+        events,
+        "AccelerationQ"
+    )
+)
+
+
+print(
+    "\n"
+    + "=" * 80
+)
+
+print(
+    "ACCELERATION QUINTILES"
+)
+
+print(
+    "=" * 80
+)
+
+print(
+    acceleration_summary
+)
+
+
+acceleration_summary.to_csv(
+    os.path.join(
+        OUTPUT_DIR,
+        "acceleration_quintiles.csv"
+    )
+)
+
+
+# =============================================================================
+# NORMALIZED VELOCITY
+# =============================================================================
+
+velocity_norm_summary = (
+    quintile_summary(
+        events,
+        "VelocityNormQ"
+    )
+)
+
+
+print(
+    "\n"
+    + "=" * 80
+)
+
+print(
+    "NORMALIZED VELOCITY QUINTILES"
+)
+
+print(
+    "=" * 80
+)
+
+print(
+    velocity_norm_summary
+)
+
+
+velocity_norm_summary.to_csv(
+    os.path.join(
+        OUTPUT_DIR,
+        "velocity_normalized_quintiles.csv"
+    )
+)
+
+
+# =============================================================================
+# NORMALIZED ACCELERATION
+# =============================================================================
+
+acceleration_norm_summary = (
+    quintile_summary(
+        events,
+        "AccelerationNormQ"
+    )
+)
+
+
+print(
+    "\n"
+    + "=" * 80
+)
+
+print(
+    "NORMALIZED ACCELERATION QUINTILES"
+)
+
+print(
+    "=" * 80
+)
+
+print(
+    acceleration_norm_summary
+)
+
+
+acceleration_norm_summary.to_csv(
+    os.path.join(
+        OUTPUT_DIR,
+        "acceleration_normalized_quintiles.csv"
+    )
+)
+
+
+# =============================================================================
+# RANGE QUINTILES
+# =============================================================================
+
+range_summary = (
+    quintile_summary(
+        events,
+        "RangeQ"
+    )
+)
+
+
+print(
+    "\n"
+    + "=" * 80
+)
+
+print(
+    "RANGE QUINTILES"
+)
+
+print(
+    "=" * 80
+)
+
+print(
+    range_summary
+)
+
+
+range_summary.to_csv(
+    os.path.join(
+        OUTPUT_DIR,
+        "range_quintiles.csv"
+    )
+)
+
+
+# =============================================================================
+# RANGE / VELOCITY QUINTILES
+# =============================================================================
+
+range_velocity_summary = (
+    quintile_summary(
+        events,
+        "RangeVelocityQ"
+    )
+)
+
+
+print(
+    "\n"
+    + "=" * 80
+)
+
+print(
+    "RANGE / VELOCITY QUINTILES"
+)
+
+print(
+    "=" * 80
+)
+
+print(
+    range_velocity_summary
+)
+
+
+range_velocity_summary.to_csv(
+    os.path.join(
+        OUTPUT_DIR,
+        "range_velocity_quintiles.csv"
+    )
+)
+
+
+# =============================================================================
+# VOLATILITY QUINTILES
+# =============================================================================
+
+for variable, output_column, prefix in [
+
+    (
+        "Volatility10w",
+        "Volatility10wQ",
+        "V10"
+    ),
+
+    (
+        "Volatility20w",
+        "Volatility20wQ",
+        "V20"
+    ),
+
+    (
+        "Volatility52w",
+        "Volatility52wQ",
+        "V52"
+    ),
+
+    (
+        "Volatility10wChange",
+        "Volatility10wChangeQ",
+        "DV10"
+    ),
+
+    (
+        "Volatility20wChange",
+        "Volatility20wChangeQ",
+        "DV20"
+    ),
+
+    (
+        "Volatility52wChange",
+        "Volatility52wChangeQ",
+        "DV52"
+    )
+]:
+
+    summary = quintile_summary(
+        events,
+        output_column
+    )
+
+    print(
+        "\n"
+        + "=" * 80
+    )
+
+    print(
+        f"{variable.upper()} QUINTILES"
+    )
+
+    print(
+        "=" * 80
+    )
+
+    print(summary)
+
+    summary.to_csv(
+        os.path.join(
+            OUTPUT_DIR,
+            f"{output_column.lower()}_summary.csv"
+        )
+    )
+
+
+# =============================================================================
+# 5 × 5 VELOCITY × ACCELERATION MATRIX
+# =============================================================================
+
+print(
+    "\n"
+    + "=" * 80
+)
+
+print(
+    "VELOCITY × ACCELERATION"
+)
+
+print(
+    "=" * 80
+)
+
+
+va_return_matrix = pd.pivot_table(
+
+    events,
+
+    values="FutureReturn",
+
+    index="VelocityQ",
+
+    columns="AccelerationQ",
+
+    aggfunc="mean",
+
+    observed=True
+)
+
+
+va_success_matrix = (
+
+    pd.pivot_table(
+
+        events,
+
+        values="Success",
+
+        index="VelocityQ",
+
+        columns="AccelerationQ",
+
+        aggfunc="mean",
+
+        observed=True
+    )
+    * 100
+)
+
+
+va_count_matrix = pd.pivot_table(
+
+    events,
+
+    values="FutureReturn",
+
+    index="VelocityQ",
+
+    columns="AccelerationQ",
+
+    aggfunc="count",
+
+    observed=True
+)
+
+
+print(
+    "\nMean future return:"
+)
+
+print(
+    va_return_matrix
+)
+
+
+print(
+    "\nSuccess rate:"
+)
+
+print(
+    va_success_matrix
+)
+
+
+print(
+    "\nCounts:"
+)
+
+print(
+    va_count_matrix
+)
+
+
+va_return_matrix.to_csv(
+    os.path.join(
+        OUTPUT_DIR,
+        "velocity_acceleration_return_matrix.csv"
+    )
+)
+
+
+va_success_matrix.to_csv(
+    os.path.join(
+        OUTPUT_DIR,
+        "velocity_acceleration_success_matrix.csv"
+    )
+)
+
+
+va_count_matrix.to_csv(
+    os.path.join(
+        OUTPUT_DIR,
+        "velocity_acceleration_count_matrix.csv"
+    )
+)
+
+
+# =============================================================================
+# NORMALIZED VELOCITY × NORMALIZED ACCELERATION
+# =============================================================================
+
+normalized_va_matrix = pd.pivot_table(
+
+    events,
+
+    values="FutureReturn",
+
+    index="VelocityNormQ",
+
+    columns="AccelerationNormQ",
+
+    aggfunc="mean",
+
+    observed=True
+)
+
+
+normalized_va_success = (
+
+    pd.pivot_table(
+
+        events,
+
+        values="Success",
+
+        index="VelocityNormQ",
+
+        columns="AccelerationNormQ",
+
+        aggfunc="mean",
+
+        observed=True
+    )
+    * 100
+)
+
+
+print(
+    "\n"
+    + "=" * 80
+)
+
+print(
+    "NORMALIZED VELOCITY × NORMALIZED ACCELERATION"
+)
+
+print(
+    "=" * 80
+)
+
+
+print(
+    "\nMean return:"
+)
+
+print(
+    normalized_va_matrix
+)
+
+
+print(
+    "\nSuccess rate:"
+)
+
+print(
+    normalized_va_success
+)
+
+
+normalized_va_matrix.to_csv(
+    os.path.join(
+        OUTPUT_DIR,
+        "normalized_velocity_acceleration_return_matrix.csv"
+    )
+)
+
+
+normalized_va_success.to_csv(
+    os.path.join(
+        OUTPUT_DIR,
+        "normalized_velocity_acceleration_success_matrix.csv"
+    )
+)
+
+
+# =============================================================================
+# RANGE × VELOCITY MATRIX
+# =============================================================================
+
+range_velocity_matrix = pd.pivot_table(
+
+    events,
+
+    values="FutureReturn",
+
+    index="VelocityQ",
+
+    columns="RangeQ",
+
+    aggfunc="mean",
+
+    observed=True
+)
+
+
+range_velocity_success = (
+
+    pd.pivot_table(
+
+        events,
+
+        values="Success",
+
+        index="VelocityQ",
+
+        columns="RangeQ",
+
+        aggfunc="mean",
+
+        observed=True
+    )
+    * 100
+)
+
+
+print(
+    "\n"
+    + "=" * 80
+)
+
+print(
+    "VELOCITY × RANGE"
+)
+
+print(
+    "=" * 80
+)
+
+
+print(
+    "\nMean future return:"
+)
+
+print(
+    range_velocity_matrix
+)
+
+
+print(
+    "\nSuccess rate:"
+)
+
+print(
+    range_velocity_success
+)
+
+
+range_velocity_matrix.to_csv(
+    os.path.join(
+        OUTPUT_DIR,
+        "velocity_range_return_matrix.csv"
+    )
+)
+
+
+range_velocity_success.to_csv(
+    os.path.join(
+        OUTPUT_DIR,
+        "velocity_range_success_matrix.csv"
+    )
+)
+
+
+# =============================================================================
+# RANGE / VELOCITY RATIO MATRIX
+# =============================================================================
+
+rv_ratio_matrix = pd.pivot_table(
+
+    events,
+
+    values="FutureReturn",
+
+    index="VelocityQ",
+
+    columns="RangeVelocityQ",
+
+    aggfunc="mean",
+
+    observed=True
+)
+
+
+print(
+    "\n"
+    + "=" * 80
+)
+
+print(
+    "VELOCITY × RANGE/VELOCITY RATIO"
+)
+
+print(
+    "=" * 80
+)
+
+print(
+    rv_ratio_matrix
+)
+
+
+rv_ratio_matrix.to_csv(
+    os.path.join(
+        OUTPUT_DIR,
+        "velocity_range_velocity_return_matrix.csv"
+    )
+)
+
+
+# =============================================================================
+# EXTREME VELOCITY TEST
+# =============================================================================
+
+print(
+    "\n"
+    + "=" * 80
+)
+
+print(
+    "EXTREME VELOCITY TEST"
+)
+
+print(
+    "=" * 80
+)
+
+
+extreme_rows = []
+
+
+for percentile in [
+    5,
+    10,
+    20,
+    30,
+    50
+]:
+
+    cutoff = (
+
+        events["Velocity"]
+        .quantile(
+            percentile / 100
+        )
+    )
+
+    subset = events[
+        events["Velocity"]
+        <= cutoff
+    ]
+
+    extreme_rows.append({
+
+        "Percentile":
+            percentile,
+
+        "N":
+            len(subset),
+
+        "VelocityCutoff":
+            cutoff,
+
+        "MeanReturn":
+            subset[
+                "FutureReturn"
+            ].mean(),
+
+        "MedianReturn":
+            subset[
+                "FutureReturn"
+            ].median(),
+
+        "SuccessRate":
+            100
+            * subset[
+                "Success"
+            ].mean(),
+
+        "PositiveAccelerationPct":
+            100
+            * subset[
+                "AccelerationPositive"
+            ].mean(),
+
+        "MeanNormalizedVelocity":
+            subset[
+                "VelocityNormalized"
+            ].mean()
+    })
+
+
+extreme_velocity = (
+    pd.DataFrame(
+        extreme_rows
+    )
+)
+
+
+print(
+    extreme_velocity
+)
+
+
+extreme_velocity.to_csv(
+
+    os.path.join(
+        OUTPUT_DIR,
+        "extreme_negative_velocity.csv"
+    ),
+
+    index=False
+)
+
+
+# =============================================================================
+# SUCCESSFUL VS FAILED BASINS
+# =============================================================================
+
+print(
+    "\n"
+    + "=" * 80
+)
+
+print(
+    "SUCCESSFUL VS FAILED BASINS"
+)
+
+print(
+    "=" * 80
+)
+
+
+success_failure_summary = (
+
+    events
+    .groupby("Success")
+    .agg(
+
+        N=(
+            "FutureReturn",
+            "size"
+        ),
+
+        MeanReturn=(
+            "FutureReturn",
+            "mean"
+        ),
+
+        MedianReturn=(
+            "FutureReturn",
+            "median"
+        ),
+
+        MeanWeeksToMaximum=(
+            "WeeksToMaximum",
+            "mean"
+        ),
+
+        MeanDescentReturn=(
+            "DescentReturn",
+            "mean"
+        ),
+
+        MeanVelocity=(
+            "Velocity",
+            "mean"
+        ),
+
+        MedianVelocity=(
+            "Velocity",
+            "median"
+        ),
+
+        MeanAcceleration=(
+            "Acceleration",
+            "mean"
+        ),
+
+        MedianAcceleration=(
+            "Acceleration",
+            "median"
+        ),
+
+        MeanNormalizedVelocity=(
+            "VelocityNormalized",
+            "mean"
+        ),
+
+        MeanNormalizedAcceleration=(
+            "AccelerationNormalized",
+            "mean"
+        ),
+
+        MeanRange=(
+            "WeeklyRange",
+            "mean"
+        ),
+
+        MeanRangeVelocity=(
+            "RangeVelocity",
+            "mean"
+        ),
+
+        MeanRangeVelocityNormalized=(
+            "RangeVelocityNormalized",
+            "mean"
+        ),
+
+        NegativeVelocityPct=(
+            "VelocityNegative",
+            "mean"
+        ),
+
+        PositiveAccelerationPct=(
+            "AccelerationPositive",
+            "mean"
+        ),
+
+        # ---------------------------------------------------------------------
+        # NEW VOLATILITY VARIABLES
+        # ---------------------------------------------------------------------
+
+        MeanVolatility10w=(
+            "Volatility10w",
+            "mean"
+        ),
+
+        MedianVolatility10w=(
+            "Volatility10w",
+            "median"
+        ),
+
+        MeanVolatility20w=(
+            "Volatility20w",
+            "mean"
+        ),
+
+        MedianVolatility20w=(
+            "Volatility20w",
+            "median"
+        ),
+
+        MeanVolatility52w=(
+            "Volatility52w",
+            "mean"
+        ),
+
+        MedianVolatility52w=(
+            "Volatility52w",
+            "median"
+        ),
+
+        MeanVolatility10wChange=(
+            "Volatility10wChange",
+            "mean"
+        ),
+
+        MeanVolatility20wChange=(
+            "Volatility20wChange",
+            "mean"
+        ),
+
+        MeanVolatility52wChange=(
+            "Volatility52wChange",
+            "mean"
+        )
+    )
+)
+
+
+success_failure_summary[
+    "NegativeVelocityPct"
+] *= 100
+
+
+success_failure_summary[
+    "PositiveAccelerationPct"
+] *= 100
+
+
+print(
+    success_failure_summary
+)
+
+
+success_failure_summary.to_csv(
+
+    os.path.join(
+        OUTPUT_DIR,
+        "success_failure_summary.csv"
+    )
+)
+
+
+# =============================================================================
+# DEDICATED VOLATILITY SUCCESS / FAILURE ANALYSIS
+# =============================================================================
+
+print(
+    "\n"
+    + "=" * 80
+)
+
+print(
+    "VOLATILITY — SUCCESSFUL VS FAILED BASINS"
+)
+
+print(
+    "=" * 80
+)
+
+
+volatility_success_failure = (
+
+    events
+    .groupby("Success")
+    .agg(
+
+        N=(
+            "FutureReturn",
+            "size"
+        ),
+
+        MeanReturn=(
+            "FutureReturn",
+            "mean"
+        ),
+
+        # ---------------------------------------------------------------------
+        # Absolute volatility
+        # ---------------------------------------------------------------------
+
+        MeanVol10w=(
+            "Volatility10w",
+            "mean"
+        ),
+
+        MedianVol10w=(
+            "Volatility10w",
+            "median"
+        ),
+
+        MeanVol20w=(
+            "Volatility20w",
+            "mean"
+        ),
+
+        MedianVol20w=(
+            "Volatility20w",
+            "median"
+        ),
+
+        MeanVol52w=(
+            "Volatility52w",
+            "mean"
+        ),
+
+        MedianVol52w=(
+            "Volatility52w",
+            "median"
+        ),
+
+        # ---------------------------------------------------------------------
+        # Volatility direction
+        # ---------------------------------------------------------------------
+
+        MeanDeltaVol10w=(
+            "Volatility10wChange",
+            "mean"
+        ),
+
+        MedianDeltaVol10w=(
+            "Volatility10wChange",
+            "median"
+        ),
+
+        MeanDeltaVol20w=(
+            "Volatility20wChange",
+            "mean"
+        ),
+
+        MedianDeltaVol20w=(
+            "Volatility20wChange",
+            "median"
+        ),
+
+        MeanDeltaVol52w=(
+            "Volatility52wChange",
+            "mean"
+        ),
+
+        MedianDeltaVol52w=(
+            "Volatility52wChange",
+            "median"
+        ),
+
+        # ---------------------------------------------------------------------
+        # Existing trajectory variables
+        # ---------------------------------------------------------------------
+
+        MeanVelocity=(
+            "Velocity",
+            "mean"
+        ),
+
+        MeanAcceleration=(
+            "Acceleration",
+            "mean"
+        )
+    )
+)
+
+
+print(
+    volatility_success_failure
+)
+
+
+volatility_success_failure.to_csv(
+
+    os.path.join(
+        OUTPUT_DIR,
+        "volatility_success_failure.csv"
+    )
+)
+
+
+# =============================================================================
+# ALIGN BASINS AROUND STRUCTURAL MINIMUM
+# =============================================================================
+
+print(
+    "\n"
+    + "=" * 80
+)
+
+print(
+    "ALIGNING BASINS AROUND MINIMUM"
+)
+
+print(
+    "=" * 80
+)
+
+
+aligned_rows = []
+
+
+for event_id, event in events.iterrows():
+
+    ticker = event["Ticker"]
+
+    minimum_index = int(
+        event["MinimumIndex"]
+    )
+
+    g = (
+
+        df[
+            df["Ticker"] == ticker
+        ]
+        .sort_values("Date")
+        .reset_index(drop=True)
+    )
+
+    if (
+        minimum_index < 0
+        or
+        minimum_index >= len(g)
+    ):
+
+        continue
+
+    lo = max(
+        0,
+        minimum_index
+        - PRE_WINDOW_WEEKS
+    )
+
+    hi = min(
+        len(g),
+        minimum_index
+        + POST_WINDOW_WEEKS
+        + 1
+    )
+
+    window = (
+        g
+        .iloc[
+            lo:hi
+        ]
+        .copy()
+    )
+
+    window["RelativeWeek"] = (
+
+        np.arange(
+            lo,
+            hi
+        )
+        - minimum_index
+    )
+
+    window["EventID"] = event_id
+
+    window["Success"] = (
+        event["Success"]
+    )
+
+    window["FutureReturn"] = (
+        event["FutureReturn"]
+    )
+
+    # -------------------------------------------------------------------------
+    # Structural distance from minimum
+    # -------------------------------------------------------------------------
+
+    minimum_smooth = (
+        event["MinimumSmooth"]
+    )
+
+    window[
+        "DistanceFromMinimum"
+    ] = (
+
+        window["smooth"]
+        - minimum_smooth
+    )
+
+    # -------------------------------------------------------------------------
+    # Percentage distance from minimum
+    # -------------------------------------------------------------------------
+
+    window[
+        "DistanceFromMinimumPct"
+    ] = (
+
+        np.exp(
+            window["DistanceFromMinimum"]
+        )
+        - 1.0
+    )
+
+    aligned_rows.append(
+
+        window[
+
+            [
+
+                "Ticker",
+                "Date",
+
+                "smooth",
+
+                "velocity",
+                "acceleration",
+                "acceleration_smooth",
+
+                "velocity_normalized",
+                "acceleration_normalized",
+
+                "weekly_log_range",
+                "weekly_log_range_smooth",
+
+                "range_to_velocity",
+                "range_to_velocity_smooth",
+
+                "range_normalized",
+                "range_velocity_normalized",
+
+                # -------------------------------------------------------------
+                # NEW VOLATILITY
+                # -------------------------------------------------------------
+
+                "volatility_10w",
+                "volatility_20w",
+                "volatility_52w",
+
+                "volatility_10w_change",
+                "volatility_20w_change",
+                "volatility_52w_change",
+
+                "RelativeWeek",
+
+                "EventID",
+
+                "Success",
+
+                "FutureReturn",
+
+                "DistanceFromMinimum",
+                "DistanceFromMinimumPct"
+            ]
+        ]
+    )
+
+
+aligned = pd.concat(
+    aligned_rows,
+    ignore_index=True
+)
+
+
+print(
+    f"Aligned observations: "
+    f"{len(aligned):,}"
+)
+
+
+print(
+    f"Events represented: "
+    f"{aligned['EventID'].nunique():,}"
+)
+
+
+# =============================================================================
+# ALIGNED SUMMARY
+# =============================================================================
+
+aligned_summary = (
+
+    aligned
+    .groupby(
+        [
+            "Success",
+            "RelativeWeek"
+        ]
+    )
+    .agg(
+
+        N=(
+            "velocity",
+            "count"
+        ),
+
+        MeanSmooth=(
+            "smooth",
+            "mean"
+        ),
+
+        MeanVelocity=(
+            "velocity",
+            "mean"
+        ),
+
+        MedianVelocity=(
+            "velocity",
+            "median"
+        ),
+
+        MeanAcceleration=(
+            "acceleration",
+            "mean"
+        ),
+
+        MedianAcceleration=(
+            "acceleration",
+            "median"
+        ),
+
+        MeanAccelerationSmooth=(
+            "acceleration_smooth",
+            "mean"
+        ),
+
+        MeanVelocityNormalized=(
+            "velocity_normalized",
+            "mean"
+        ),
+
+        MeanAccelerationNormalized=(
+            "acceleration_normalized",
+            "mean"
+        ),
+
+        MeanRange=(
+            "weekly_log_range",
+            "mean"
+        ),
+
+        MeanRangeVelocity=(
+            "range_to_velocity",
+            "mean"
+        ),
+
+        MeanRangeVelocityNormalized=(
+            "range_velocity_normalized",
+            "mean"
+        ),
+
+        # ---------------------------------------------------------------------
+        # NEW VOLATILITY ALIGNMENT
+        # ---------------------------------------------------------------------
+
+        MeanVolatility10w=(
+            "volatility_10w",
+            "mean"
+        ),
+
+        MedianVolatility10w=(
+            "volatility_10w",
+            "median"
+        ),
+
+        MeanVolatility20w=(
+            "volatility_20w",
+            "mean"
+        ),
+
+        MedianVolatility20w=(
+            "volatility_20w",
+            "median"
+        ),
+
+        MeanVolatility52w=(
+            "volatility_52w",
+            "mean"
+        ),
+
+        MedianVolatility52w=(
+            "volatility_52w",
+            "median"
+        ),
+
+        MeanVolatility10wChange=(
+            "volatility_10w_change",
+            "mean"
+        ),
+
+        MeanVolatility20wChange=(
+            "volatility_20w_change",
+            "mean"
+        ),
+
+        MeanVolatility52wChange=(
+            "volatility_52w_change",
+            "mean"
+        ),
+
+        MeanDistanceFromMinimum=(
+            "DistanceFromMinimum",
+            "mean"
+        ),
+
+        MeanDistanceFromMinimumPct=(
+            "DistanceFromMinimumPct",
+            "mean"
+        )
+    )
+    .reset_index()
+)
+
+
+aligned_summary.to_csv(
+
+    os.path.join(
+        OUTPUT_DIR,
+        "aligned_basin_summary.csv"
+    ),
+
+    index=False
+)
+
+
+aligned.to_csv(
+
+    os.path.join(
+        OUTPUT_DIR,
+        "aligned_basin_observations.csv"
+    ),
+
+    index=False
+)
+
+
+# =============================================================================
+# EARLY RECOGNITION ANALYSIS
+# =============================================================================
+
+print(
+    "\n"
+    + "=" * 80
+)
+
+print(
+    "EARLY RECOGNITION ANALYSIS"
+)
+
+print(
+    "=" * 80
+)
+
+
+early_rows = []
+
+
+for event_id, event in events.iterrows():
+
+    ticker = event["Ticker"]
+
+    minimum_index = int(
+        event["MinimumIndex"]
+    )
+
+    g = (
+
+        df[
+            df["Ticker"] == ticker
+        ]
+        .sort_values("Date")
+        .reset_index(drop=True)
+    )
+
+    for weeks_before in EARLY_RECOGNITION_WEEKS:
+
+        idx = (
+
+            minimum_index
+            - weeks_before
+        )
+
+        if idx < 0:
+            continue
+
+        if idx >= len(g):
+            continue
+
+        row = g.iloc[idx]
+
+        early_rows.append({
+
+            "EventID":
+                event_id,
+
+            "Ticker":
+                ticker,
+
+            "MinimumDate":
+                event["MinimumDate"],
+
+            "ObservationDate":
+                row["Date"],
+
+            "WeeksBeforeMinimum":
+                weeks_before,
+
+            "Success":
+                event["Success"],
+
+            "FutureReturn":
+                event["FutureReturn"],
+
+            # -----------------------------------------------------------------
+            # Existing variables
+            # -----------------------------------------------------------------
+
+            "Velocity":
+                row["velocity"],
+
+            "Acceleration":
+                row["acceleration"],
+
+            "AccelerationSmooth":
+                row["acceleration_smooth"],
+
+            "VelocityNormalized":
+                row["velocity_normalized"],
+
+            "AccelerationNormalized":
+                row["acceleration_normalized"],
+
+            "WeeklyRange":
+                row["weekly_log_range"],
+
+            "RangeNormalized":
+                row["range_normalized"],
+
+            "RangeVelocity":
+                row["range_to_velocity"],
+
+            "RangeVelocityNormalized":
+                row["range_velocity_normalized"],
+
+            "Smooth":
+                row["smooth"],
+
+            # -----------------------------------------------------------------
+            # NEW VOLATILITY VARIABLES
+            # -----------------------------------------------------------------
+
+            "Volatility10w":
+                row["volatility_10w"],
+
+            "Volatility20w":
+                row["volatility_20w"],
+
+            "Volatility52w":
+                row["volatility_52w"],
+
+            "Volatility10wChange":
+                row["volatility_10w_change"],
+
+            "Volatility20wChange":
+                row["volatility_20w_change"],
+
+            "Volatility52wChange":
+                row["volatility_52w_change"]
+        })
+
+
+early = pd.DataFrame(
+    early_rows
+)
+
+
+# =============================================================================
+# EARLY RECOGNITION SUMMARY
+# =============================================================================
+
+early_summary = (
+
+    early
+    .groupby(
+        [
+            "Success",
+            "WeeksBeforeMinimum"
+        ]
+    )
+    .agg(
+
+        N=(
+            "EventID",
+            "count"
+        ),
+
+        MeanFutureReturn=(
+            "FutureReturn",
+            "mean"
+        ),
+
+        # ---------------------------------------------------------------------
+        # Existing trajectory variables
+        # ---------------------------------------------------------------------
+
+        MeanVelocity=(
+            "Velocity",
+            "mean"
+        ),
+
+        MedianVelocity=(
+            "Velocity",
+            "median"
+        ),
+
+        MeanAcceleration=(
+            "Acceleration",
+            "mean"
+        ),
+
+        MeanAccelerationSmooth=(
+            "AccelerationSmooth",
+            "mean"
+        ),
+
+        MeanVelocityNormalized=(
+            "VelocityNormalized",
+            "mean"
+        ),
+
+        MeanAccelerationNormalized=(
+            "AccelerationNormalized",
+            "mean"
+        ),
+
+        # ---------------------------------------------------------------------
+        # Existing range variables
+        # ---------------------------------------------------------------------
+
+        MeanRange=(
+            "WeeklyRange",
+            "mean"
+        ),
+
+        MeanRangeVelocity=(
+            "RangeVelocity",
+            "mean"
+        ),
+
+        MeanRangeVelocityNormalized=(
+            "RangeVelocityNormalized",
+            "mean"
+        ),
+
+        # ---------------------------------------------------------------------
+        # NEW: absolute volatility
+        # ---------------------------------------------------------------------
+
+        MeanVolatility10w=(
+            "Volatility10w",
+            "mean"
+        ),
+
+        MedianVolatility10w=(
+            "Volatility10w",
+            "median"
+        ),
+
+        MeanVolatility20w=(
+            "Volatility20w",
+            "mean"
+        ),
+
+        MedianVolatility20w=(
+            "Volatility20w",
+            "median"
+        ),
+
+        MeanVolatility52w=(
+            "Volatility52w",
+            "mean"
+        ),
+
+        MedianVolatility52w=(
+            "Volatility52w",
+            "median"
+        ),
+
+        # ---------------------------------------------------------------------
+        # NEW: volatility trajectory
+        # ---------------------------------------------------------------------
+
+        MeanVolatility10wChange=(
+            "Volatility10wChange",
+            "mean"
+        ),
+
+        MeanVolatility20wChange=(
+            "Volatility20wChange",
+            "mean"
+        ),
+
+        MeanVolatility52wChange=(
+            "Volatility52wChange",
+            "mean"
+        )
+    )
+    .reset_index()
+)
+
+
+early.to_csv(
+
+    os.path.join(
+        OUTPUT_DIR,
+        "early_recognition_observations.csv"
+    ),
+
+    index=False
+)
+
+
+early_summary.to_csv(
+
+    os.path.join(
+        OUTPUT_DIR,
+        "early_recognition_summary.csv"
+    ),
+
+    index=False
+)
+
+
+print(
+    early_summary.to_string(
+        index=False
+    )
+)
+
+
+# =============================================================================
+# VOLATILITY EARLY-RECOGNITION ANALYSIS
+# =============================================================================
+#
+# This is the key new diagnostic.
+#
+# For every known basin:
+#
+#     -20 weeks
+#     -15 weeks
+#     -10 weeks
+#     ...
+#     -1 week
+#      0 weeks
+#
+# we examine volatility and compare successful vs failed basins.
+#
+# =============================================================================
+
+print(
+    "\n"
+    + "=" * 80
+)
+
+print(
+    "VOLATILITY EARLY-RECOGNITION ANALYSIS"
+)
+
+print(
+    "=" * 80
+)
+
+
+volatility_early_summary = (
+
+    early
+    .groupby(
+        [
+            "Success",
+            "WeeksBeforeMinimum"
+        ]
+    )
+    .agg(
+
+        N=(
+            "EventID",
+            "count"
+        ),
+
+        MeanFutureReturn=(
+            "FutureReturn",
+            "mean"
+        ),
+
+        # ---------------------------------------------------------------------
+        # Absolute volatility
+        # ---------------------------------------------------------------------
+
+        MeanVolatility10w=(
+            "Volatility10w",
+            "mean"
+        ),
+
+        MedianVolatility10w=(
+            "Volatility10w",
+            "median"
+        ),
+
+        MeanVolatility20w=(
+            "Volatility20w",
+            "mean"
+        ),
+
+        MedianVolatility20w=(
+            "Volatility20w",
+            "median"
+        ),
+
+        MeanVolatility52w=(
+            "Volatility52w",
+            "mean"
+        ),
+
+        MedianVolatility52w=(
+            "Volatility52w",
+            "median"
+        ),
+
+        # ---------------------------------------------------------------------
+        # Volatility changes
+        # ---------------------------------------------------------------------
+
+        MeanVolatility10wChange=(
+            "Volatility10wChange",
+            "mean"
+        ),
+
+        MedianVolatility10wChange=(
+            "Volatility10wChange",
+            "median"
+        ),
+
+        MeanVolatility20wChange=(
+            "Volatility20wChange",
+            "mean"
+        ),
+
+        MedianVolatility20wChange=(
+            "Volatility20wChange",
+            "median"
+        ),
+
+        MeanVolatility52wChange=(
+            "Volatility52wChange",
+            "mean"
+        ),
+
+        MedianVolatility52wChange=(
+            "Volatility52wChange",
+            "median"
+        )
+    )
+    .reset_index()
+)
+
+
+print(
+    volatility_early_summary.to_string(
+        index=False
+    )
+)
+
+
+volatility_early_summary.to_csv(
+
+    os.path.join(
+        OUTPUT_DIR,
+        "volatility_early_recognition_summary.csv"
+    ),
+
+    index=False
+)
+
+
+# =============================================================================
+# ACCELERATION TURNING POINT
+# =============================================================================
+
+print(
+    "\n"
+    + "=" * 80
+)
+
+print(
+    "ACCELERATION TURNING POINT"
+)
+
+print(
+    "=" * 80
+)
+
+
+turn_rows = []
+
+
+for event_id, event in events.iterrows():
+
+    ticker = event["Ticker"]
+
+    minimum_index = int(
+        event["MinimumIndex"]
+    )
+
+    g = (
+
+        df[
+            df["Ticker"] == ticker
+        ]
+        .sort_values("Date")
+        .reset_index(drop=True)
+    )
+
+    start = max(
+        0,
+        minimum_index
+        - PRE_WINDOW_WEEKS
+    )
+
+    a = pd.to_numeric(
+
+        g.iloc[
+            start:
+            minimum_index + 1
+        ][
+            "acceleration_smooth"
+        ],
+
+        errors="coerce"
+    ).values
+
+    turn_relative = np.nan
+
+    if len(a) >= 3:
+
+        for j in range(
+            len(a) - 2
+        ):
+
+            if not (
+
+                np.isfinite(a[j])
+                and
+                np.isfinite(a[j + 1])
+                and
+                np.isfinite(a[j + 2])
+            ):
+
+                continue
+
+            if (
+
+                a[j] < 0
+
+                and
+
+                a[j + 1] >= 0
+
+                and
+
+                a[j + 2] >= 0
+            ):
+
+                absolute_turn = (
+
+                    start
+                    + j
+                    + 1
+                )
+
+                turn_relative = (
+
+                    absolute_turn
+                    - minimum_index
+                )
+
+
+    turn_rows.append({
+
+        "EventID":
+            event_id,
+
+        "Ticker":
+            ticker,
+
+        "Success":
+            event["Success"],
+
+        "FutureReturn":
+            event["FutureReturn"],
+
+        "AccelerationTurnRelative":
+            turn_relative
+    })
+
+
+turns = pd.DataFrame(
+    turn_rows
+)
+
+
+turns.to_csv(
+
+    os.path.join(
+        OUTPUT_DIR,
+        "acceleration_turning_points.csv"
+    ),
+
+    index=False
+)
+
+
+print(
+
+    turns
+    .groupby("Success")[
+        "AccelerationTurnRelative"
+    ]
+    .describe()
+)
+
+
+# =============================================================================
+# BASIN SYMMETRY
+# =============================================================================
+
+print(
+    "\n"
+    + "=" * 80
+)
+
+print(
+    "BASIN SYMMETRY"
+)
+
+print(
+    "=" * 80
+)
+
+
+symmetry_rows = []
+
+
+for event_id, event in events.iterrows():
+
+    ticker = event["Ticker"]
+
+    minimum_index = int(
+        event["MinimumIndex"]
+    )
+
+    maximum_index = int(
+        event["MaximumIndex"]
+    )
+
+    g = (
+
+        df[
+            df["Ticker"] == ticker
+        ]
+        .sort_values("Date")
+        .reset_index(drop=True)
+    )
+
+    # -------------------------------------------------------------------------
+    # Local velocity symmetry
+    # -------------------------------------------------------------------------
+
+    pre_start = max(
+        0,
+        minimum_index
+        - SYMMETRY_WINDOW
+    )
+
+    pre = g.iloc[
+        pre_start:
+        minimum_index
+    ]
+
+    post_end = min(
+        len(g),
+        minimum_index
+        + SYMMETRY_WINDOW
+        + 1
+    )
+
+    post = g.iloc[
+        minimum_index + 1:
+        post_end
+    ]
+
+    pre_v = (
+
+        pd.to_numeric(
+            pre["velocity"],
+            errors="coerce"
+        )
+        .dropna()
+    )
+
+    post_v = (
+
+        pd.to_numeric(
+            post["velocity"],
+            errors="coerce"
+        )
+        .dropna()
+    )
+
+    if (
+        len(pre_v) >= 3
+        and
+        len(post_v) >= 3
+    ):
+
+        falling_speed = np.mean(
+            np.abs(pre_v)
+        )
+
+        rising_speed = np.mean(
+            np.abs(post_v)
+        )
+
+        if (
+            falling_speed > 0
+            and
+            rising_speed > 0
+        ):
+
+            velocity_symmetry = (
+
+                min(
+                    falling_speed,
+                    rising_speed
+                )
+                /
+                max(
+                    falling_speed,
+                    rising_speed
+                )
+            )
+
+        else:
+
+            velocity_symmetry = np.nan
+
+    else:
+
+        falling_speed = np.nan
+
+        rising_speed = np.nan
+
+        velocity_symmetry = np.nan
+
+    # -------------------------------------------------------------------------
+    # Structural symmetry
+    # -------------------------------------------------------------------------
+
+    previous_maximum_index = (
+
+        event[
+            "PreviousMaximumIndex"
+        ]
+    )
+
+    if pd.notna(
+        previous_maximum_index
+    ):
+
+        previous_maximum_index = int(
+            previous_maximum_index
+        )
+
+        descent = (
+            event["DescentReturn"]
+        )
+
+    else:
+
+        descent = np.nan
+
+    rebound = (
+        event["FutureReturn"]
+    )
+
+    if (
+        np.isfinite(descent)
+        and
+        descent > 0
+        and
+        rebound > 0
+    ):
+
+        structural_symmetry = (
+
+            min(
+                descent,
+                rebound
+            )
+            /
+            max(
+                descent,
+                rebound
+            )
+        )
+
+    else:
+
+        structural_symmetry = np.nan
+
+    symmetry_rows.append({
+
+        "EventID":
+            event_id,
+
+        "Ticker":
+            ticker,
+
+        "Success":
+            event["Success"],
+
+        "FutureReturn":
+            event["FutureReturn"],
+
+        "PreVelocityMagnitude":
+            falling_speed,
+
+        "PostVelocityMagnitude":
+            rising_speed,
+
+        "VelocitySymmetry":
+            velocity_symmetry,
+
+        "DescentReturn":
+            descent,
+
+        "ReboundReturn":
+            rebound,
+
+        "StructuralSymmetry":
+            structural_symmetry
+    })
+
+
+symmetry = pd.DataFrame(
+    symmetry_rows
+)
+
+
+symmetry.to_csv(
+
+    os.path.join(
+        OUTPUT_DIR,
+        "basin_symmetry.csv"
+    ),
+
+    index=False
+)
+
+
+symmetry_summary = (
+
+    symmetry
+    .groupby("Success")
+    [
+        [
+            "VelocitySymmetry",
+            "StructuralSymmetry",
+            "PreVelocityMagnitude",
+            "PostVelocityMagnitude"
+        ]
+    ]
+    .describe()
+)
+
+
+print(
+    symmetry_summary
+)
+
+
+# =============================================================================
+# SYMMETRY QUINTILES
+# =============================================================================
+
+if len(symmetry) >= 20:
+
+    symmetry["SymmetryQ"] = safe_qcut(
+
+        symmetry[
+            "VelocitySymmetry"
+        ],
+
+        5,
+
+        "S"
+    )
+
+    symmetry_quintiles = (
+
+        symmetry
+        .groupby(
+            "SymmetryQ",
+            observed=True
+        )
+        .agg(
+
+            N=(
+                "EventID",
+                "size"
+            ),
+
+            MeanSymmetry=(
+                "VelocitySymmetry",
+                "mean"
+            ),
+
+            MeanReturn=(
+                "FutureReturn",
+                "mean"
+            ),
+
+            SuccessRate=(
+                "Success",
+                "mean"
+            )
+        )
+    )
+
+    symmetry_quintiles[
+        "SuccessRate"
+    ] *= 100
+
+    print(
+        "\nVelocity symmetry quintiles:"
+    )
+
+    print(
+        symmetry_quintiles
+    )
+
+    symmetry_quintiles.to_csv(
+
+        os.path.join(
+            OUTPUT_DIR,
+            "symmetry_quintiles.csv"
+        )
+    )
+
+
+# =============================================================================
+# THRESHOLD ROBUSTNESS
+# =============================================================================
+
+print(
+    "\n"
+    + "=" * 80
+)
+
+print(
+    "THRESHOLD ROBUSTNESS"
+)
+
+print(
+    "=" * 80
+)
+
+
+threshold_rows = []
+
+
+for threshold in [
+
+    0.10,
+    0.20,
+    0.30,
+    0.40,
+    0.50,
+    0.75,
+    1.00
+
+]:
+
+    subset = events[
+
+        events["FutureReturn"]
+        >= threshold
+    ]
+
+    if len(subset) == 0:
+        continue
+
+    threshold_rows.append({
+
+        "Threshold":
+            threshold,
+
+        "N":
+            len(subset),
+
+        "MeanReturn":
+            subset[
+                "FutureReturn"
+            ].mean(),
+
+        "MedianReturn":
+            subset[
+                "FutureReturn"
+            ].median(),
+
+        "MeanVelocity":
+            subset[
+                "Velocity"
+            ].mean(),
+
+        "MeanAcceleration":
+            subset[
+                "Acceleration"
+            ].mean(),
+
+        "MeanVelocityNormalized":
+            subset[
+                "VelocityNormalized"
+            ].mean(),
+
+        "MeanAccelerationNormalized":
+            subset[
+                "AccelerationNormalized"
+            ].mean(),
+
+        "NegativeVelocityPct":
+            100
+            * subset[
+                "VelocityNegative"
+            ].mean(),
+
+        "PositiveAccelerationPct":
+            100
+            * subset[
+                "AccelerationPositive"
+            ].mean(),
+
+        # ---------------------------------------------------------------------
+        # NEW VOLATILITY THRESHOLD DATA
+        # ---------------------------------------------------------------------
+
+        "MeanVolatility10w":
+            subset[
+                "Volatility10w"
+            ].mean(),
+
+        "MeanVolatility20w":
+            subset[
+                "Volatility20w"
+            ].mean(),
+
+        "MeanVolatility52w":
+            subset[
+                "Volatility52w"
+            ].mean(),
+
+        "MeanVolatility10wChange":
+            subset[
+                "Volatility10wChange"
+            ].mean(),
+
+        "MeanVolatility20wChange":
+            subset[
+                "Volatility20wChange"
+            ].mean(),
+
+        "MeanVolatility52wChange":
+            subset[
+                "Volatility52wChange"
+            ].mean()
+    })
+
+
+threshold_table = pd.DataFrame(
+    threshold_rows
+)
+
+
+print(
+    threshold_table.to_string(
+        index=False
+    )
+)
+
+
+threshold_table.to_csv(
+
+    os.path.join(
+        OUTPUT_DIR,
+        "threshold_robustness.csv"
+    ),
+
+    index=False
+)
+
+
+# =============================================================================
+# LARGE WINNERS
+# =============================================================================
+
+print(
+    "\n"
+    + "=" * 80
+)
+
+print(
+    "LARGEST BASIN RUNS"
+)
+
+print(
+    "=" * 80
+)
+
+
+largest = (
+
+    events
+    .sort_values(
+        "FutureReturn",
+        ascending=False
+    )
+    .head(50)
+)
+
+
+display_columns = [
+
+    "Ticker",
+
+    "MinimumDate",
+    "MaximumDate",
+
+    "WeeksToMaximum",
+
+    "FutureReturn",
+
+    "DescentReturn",
+
+    "Velocity",
+    "Acceleration",
+
+    "VelocityNormalized",
+    "AccelerationNormalized",
+
+    "WeeklyRange",
+
+    "RangeVelocity",
+    "RangeVelocityNormalized",
+
+    # -------------------------------------------------------------------------
+    # NEW VOLATILITY
+    # -------------------------------------------------------------------------
+
+    "Volatility10w",
+    "Volatility20w",
+    "Volatility52w",
+
+    "Volatility10wChange",
+    "Volatility20wChange",
+    "Volatility52wChange",
+
+    "VAQuadrant",
+
+    "Success"
+]
+
+
+print(
+
+    largest[
+        display_columns
+    ]
+    .to_string(
+        index=False
+    )
+)
+
+
+largest[
+    display_columns
+].to_csv(
+
+    os.path.join(
+        OUTPUT_DIR,
+        "largest_basin_runs.csv"
+    ),
+
+    index=False
+)
+
+
+# =============================================================================
+# PLOTS
+# =============================================================================
+
+print(
+    "\n"
+    + "=" * 80
+)
+
+print(
+    "CREATING PLOTS"
+)
+
+print(
+    "=" * 80
+)
+
+
+# =============================================================================
+# PLOT 1 — VELOCITY ALIGNMENT
+# =============================================================================
+
+plt.figure(
+    figsize=(12, 6)
+)
+
+
+for success_value, label in [
+
+    (False, "Failed"),
+    (True, "Successful")
+
+]:
+
+    temp = aligned_summary[
+
+        aligned_summary["Success"]
+        == success_value
+    ]
+
+    plt.plot(
+
+        temp["RelativeWeek"],
+
+        temp["MeanVelocity"],
+
+        linewidth=2,
+
+        label=label
+    )
+
+
+plt.axvline(
+    0,
+    linestyle="--",
+    alpha=0.6
+)
+
+
+plt.axhline(
+    0,
+    linestyle=":",
+    alpha=0.6
+)
+
+
+plt.title(
+    "Velocity Around Structural Minimum"
+)
+
+plt.xlabel(
+    "Weeks relative to minimum"
+)
+
+plt.ylabel(
+    "Velocity"
+)
+
+plt.legend()
+
+plt.grid(
+    alpha=0.25
+)
+
+plt.tight_layout()
+
+
+plt.savefig(
+
+    os.path.join(
+        OUTPUT_DIR,
+        "01_velocity_alignment.png"
+    ),
+
+    dpi=160
+)
+
+
+plt.show()
+
+
+# =============================================================================
+# PLOT 2 — ACCELERATION ALIGNMENT
+# =============================================================================
+
+plt.figure(
+    figsize=(12, 6)
+)
+
+
+for success_value, label in [
+
+    (False, "Failed"),
+    (True, "Successful")
+
+]:
+
+    temp = aligned_summary[
+
+        aligned_summary["Success"]
+        == success_value
+    ]
+
+    plt.plot(
+
+        temp["RelativeWeek"],
+
+        temp["MeanAcceleration"],
+
+        linewidth=2,
+
+        label=label
+    )
+
+
+plt.axvline(
+    0,
+    linestyle="--",
+    alpha=0.6
+)
+
+
+plt.axhline(
+    0,
+    linestyle=":",
+    alpha=0.6
+)
+
+
+plt.title(
+    "Acceleration Around Structural Minimum"
+)
+
+plt.xlabel(
+    "Weeks relative to minimum"
+)
+
+plt.ylabel(
+    "Acceleration"
+)
+
+plt.legend()
+
+plt.grid(
+    alpha=0.25
+)
+
+plt.tight_layout()
+
+
+plt.savefig(
+
+    os.path.join(
+        OUTPUT_DIR,
+        "02_acceleration_alignment.png"
+    ),
+
+    dpi=160
+)
+
+
+plt.show()
+
+
+# =============================================================================
+# PLOT 3 — NORMALIZED VELOCITY
+# =============================================================================
+
+plt.figure(
+    figsize=(12, 6)
+)
+
+
+for success_value, label in [
+
+    (False, "Failed"),
+    (True, "Successful")
+
+]:
+
+    temp = aligned_summary[
+
+        aligned_summary["Success"]
+        == success_value
+    ]
+
+    plt.plot(
+
+        temp["RelativeWeek"],
+
+        temp["MeanVelocityNormalized"],
+
+        linewidth=2,
+
+        label=label
+    )
+
+
+plt.axvline(
+    0,
+    linestyle="--",
+    alpha=0.6
+)
+
+
+plt.axhline(
+    0,
+    linestyle=":",
+    alpha=0.6
+)
+
+
+plt.axhline(
+    -1,
+    linestyle=":",
+    alpha=0.4
+)
+
+
+plt.axhline(
+    1,
+    linestyle=":",
+    alpha=0.4
+)
+
+
+plt.title(
+    "Normalized Velocity Around Structural Minimum"
+)
+
+plt.xlabel(
+    "Weeks relative to minimum"
+)
+
+plt.ylabel(
+    "Velocity / causal median |Velocity|"
+)
+
+plt.legend()
+
+plt.grid(
+    alpha=0.25
+)
+
+plt.tight_layout()
+
+
+plt.savefig(
+
+    os.path.join(
+        OUTPUT_DIR,
+        "03_normalized_velocity_alignment.png"
+    ),
+
+    dpi=160
+)
+
+
+plt.show()
+
+
+# =============================================================================
+# PLOT 4 — NORMALIZED ACCELERATION
+# =============================================================================
+
+plt.figure(
+    figsize=(12, 6)
+)
+
+
+for success_value, label in [
+
+    (False, "Failed"),
+    (True, "Successful")
+
+]:
+
+    temp = aligned_summary[
+
+        aligned_summary["Success"]
+        == success_value
+    ]
+
+    plt.plot(
+
+        temp["RelativeWeek"],
+
+        temp["MeanAccelerationNormalized"],
+
+        linewidth=2,
+
+        label=label
+    )
+
+
+plt.axvline(
+    0,
+    linestyle="--",
+    alpha=0.6
+)
+
+
+plt.axhline(
+    0,
+    linestyle=":",
+    alpha=0.6
+)
+
+
+plt.title(
+    "Normalized Acceleration Around Structural Minimum"
+)
+
+plt.xlabel(
+    "Weeks relative to minimum"
+)
+
+plt.ylabel(
+    "Acceleration / causal median |Acceleration|"
+)
+
+plt.legend()
+
+plt.grid(
+    alpha=0.25
+)
+
+plt.tight_layout()
+
+
+plt.savefig(
+
+    os.path.join(
+        OUTPUT_DIR,
+        "04_normalized_acceleration_alignment.png"
+    ),
+
+    dpi=160
+)
+
+
+plt.show()
+
+
+# =============================================================================
+# PLOT 5 — RANGE
+# =============================================================================
+
+plt.figure(
+    figsize=(12, 6)
+)
+
+
+for success_value, label in [
+
+    (False, "Failed"),
+    (True, "Successful")
+
+]:
+
+    temp = aligned_summary[
+
+        aligned_summary["Success"]
+        == success_value
+    ]
+
+    plt.plot(
+
+        temp["RelativeWeek"],
+
+        temp["MeanRange"],
+
+        linewidth=2,
+
+        label=label
+    )
+
+
+plt.axvline(
+    0,
+    linestyle="--",
+    alpha=0.6
+)
+
+
+plt.title(
+    "Weekly Range Around Structural Minimum"
+)
+
+plt.xlabel(
+    "Weeks relative to minimum"
+)
+
+plt.ylabel(
+    "Weekly log high-low range"
+)
+
+plt.legend()
+
+plt.grid(
+    alpha=0.25
+)
+
+plt.tight_layout()
+
+
+plt.savefig(
+
+    os.path.join(
+        OUTPUT_DIR,
+        "05_range_alignment.png"
+    ),
+
+    dpi=160
+)
+
+
+plt.show()
+
+
+# =============================================================================
+# PLOT 6 — RANGE / VELOCITY
+# =============================================================================
+
+plt.figure(
+    figsize=(12, 6)
+)
+
+
+for success_value, label in [
+
+    (False, "Failed"),
+    (True, "Successful")
+
+]:
+
+    temp = aligned_summary[
+
+        aligned_summary["Success"]
+        == success_value
+    ]
+
+    plt.plot(
+
+        temp["RelativeWeek"],
+
+        temp["MeanRangeVelocity"],
+
+        linewidth=2,
+
+        label=label
+    )
+
+
+plt.axvline(
+    0,
+    linestyle="--",
+    alpha=0.6
+)
+
+
+plt.title(
+    "Range / Protected |Velocity| Around Minimum"
+)
+
+plt.xlabel(
+    "Weeks relative to minimum"
+)
+
+plt.ylabel(
+    "Range / |Velocity|"
+)
+
+plt.legend()
+
+plt.grid(
+    alpha=0.25
+)
+
+plt.tight_layout()
+
+
+plt.savefig(
+
+    os.path.join(
+        OUTPUT_DIR,
+        "06_range_velocity_alignment.png"
+    ),
+
+    dpi=160
+)
+
+
+plt.show()
+
+
+# =============================================================================
+# PLOT 7 — VELOCITY × ACCELERATION
+# =============================================================================
+
+if not va_return_matrix.empty:
+
+    plt.figure(
+        figsize=(10, 7)
+    )
+
+    plt.imshow(
+
+        va_return_matrix.values,
+
+        aspect="auto",
+
+        interpolation="nearest"
+    )
+
+    plt.colorbar(
+        label="Mean future return"
+    )
+
+    plt.xticks(
+
+        range(
+            len(
+                va_return_matrix.columns
+            )
+        ),
+
+        va_return_matrix.columns
+    )
+
+    plt.yticks(
+
+        range(
+            len(
+                va_return_matrix.index
+            )
+        ),
+
+        va_return_matrix.index
+    )
+
+    plt.xlabel(
+        "Acceleration quintile"
+    )
+
+    plt.ylabel(
+        "Velocity quintile"
+    )
+
+    plt.title(
+        "Velocity × Acceleration — Mean Future Return"
+    )
+
+    plt.tight_layout()
+
+    plt.savefig(
+
+        os.path.join(
+            OUTPUT_DIR,
+            "07_velocity_acceleration_matrix.png"
+        ),
+
+        dpi=160
+    )
+
+    plt.show()
+
+
+# =============================================================================
+# PLOT 8 — NORMALIZED VELOCITY × ACCELERATION
+# =============================================================================
+
+if not normalized_va_matrix.empty:
+
+    plt.figure(
+        figsize=(10, 7)
+    )
+
+    plt.imshow(
+
+        normalized_va_matrix.values,
+
+        aspect="auto",
+
+        interpolation="nearest"
+    )
+
+    plt.colorbar(
+        label="Mean future return"
+    )
+
+    plt.xticks(
+
+        range(
+            len(
+                normalized_va_matrix.columns
+            )
+        ),
+
+        normalized_va_matrix.columns
+    )
+
+    plt.yticks(
+
+        range(
+            len(
+                normalized_va_matrix.index
+            )
+        ),
+
+        normalized_va_matrix.index
+    )
+
+    plt.xlabel(
+        "Normalized acceleration quintile"
+    )
+
+    plt.ylabel(
+        "Normalized velocity quintile"
+    )
+
+    plt.title(
+        "Normalized Velocity × Acceleration"
+    )
+
+    plt.tight_layout()
+
+    plt.savefig(
+
+        os.path.join(
+            OUTPUT_DIR,
+            "08_normalized_velocity_acceleration_matrix.png"
+        ),
+
+        dpi=160
+    )
+
+    plt.show()
+
+
+# =============================================================================
+# PLOT 9 — VELOCITY × RANGE
+# =============================================================================
+
+if not range_velocity_matrix.empty:
+
+    plt.figure(
+        figsize=(10, 7)
+    )
+
+    plt.imshow(
+
+        range_velocity_matrix.values,
+
+        aspect="auto",
+
+        interpolation="nearest"
+    )
+
+    plt.colorbar(
+        label="Mean future return"
+    )
+
+    plt.xticks(
+
+        range(
+            len(
+                range_velocity_matrix.columns
+            )
+        ),
+
+        range_velocity_matrix.columns
+    )
+
+    plt.yticks(
+
+        range(
+            len(
+                range_velocity_matrix.index
+            )
+        ),
+
+        range_velocity_matrix.index
+    )
+
+    plt.xlabel(
+        "Range quintile"
+    )
+
+    plt.ylabel(
+        "Velocity quintile"
+    )
+
+    plt.title(
+        "Velocity × Weekly Range"
+    )
+
+    plt.tight_layout()
+
+    plt.savefig(
+
+        os.path.join(
+            OUTPUT_DIR,
+            "09_velocity_range_matrix.png"
+        ),
+
+        dpi=160
+    )
+
+    plt.show()
+
+
+# =============================================================================
+# PLOT 10 — BASIN SYMMETRY
+# =============================================================================
+
+if not symmetry.empty:
+
+    plt.figure(
+        figsize=(10, 6)
+    )
+
+    plt.hist(
+
+        symmetry.loc[
+            symmetry["Success"] == False,
+            "VelocitySymmetry"
+        ].dropna(),
+
+        bins=30,
+
+        alpha=0.5,
+
+        label="Failed"
+    )
+
+    plt.hist(
+
+        symmetry.loc[
+            symmetry["Success"] == True,
+            "VelocitySymmetry"
+        ].dropna(),
+
+        bins=30,
+
+        alpha=0.5,
+
+        label="Successful"
+    )
+
+    plt.xlabel(
+        "Velocity symmetry"
+    )
+
+    plt.ylabel(
+        "Number of basins"
+    )
+
+    plt.title(
+        "Basin Velocity Symmetry"
+    )
+
+    plt.legend()
+
+    plt.grid(
+        alpha=0.25
+    )
+
+    plt.tight_layout()
+
+    plt.savefig(
+
+        os.path.join(
+            OUTPUT_DIR,
+            "10_basin_symmetry.png"
+        ),
+
+        dpi=160
+    )
+
+    plt.show()
+
+
+# =============================================================================
+# PLOT 11 — EARLY RECOGNITION: VELOCITY
+# =============================================================================
+
+plt.figure(
+    figsize=(12, 6)
+)
+
+
+for success_value, label in [
+
+    (False, "Failed"),
+    (True, "Successful")
+
+]:
+
+    temp = early_summary[
+
+        early_summary["Success"]
+        == success_value
+    ]
+
+    plt.plot(
+
+        -temp["WeeksBeforeMinimum"],
+
+        temp["MeanVelocityNormalized"],
+
+        marker="o",
+
+        label=label
+    )
+
+
+plt.axvline(
+    0,
+    linestyle="--",
+    alpha=0.6
+)
+
+
+plt.axhline(
+    0,
+    linestyle=":",
+    alpha=0.6
+)
+
+
+plt.xlabel(
+    "Weeks relative to eventual minimum"
+)
+
+plt.ylabel(
+    "Normalized velocity"
+)
+
+plt.title(
+    "Early Recognition — Normalized Velocity"
+)
+
+plt.legend()
+
+plt.grid(
+    alpha=0.25
+)
+
+plt.tight_layout()
+
+
+plt.savefig(
+
+    os.path.join(
+        OUTPUT_DIR,
+        "11_early_recognition_velocity.png"
+    ),
+
+    dpi=160
+)
+
+
+plt.show()
+
+
+# =============================================================================
+# PLOT 12 — EARLY RECOGNITION: ACCELERATION
+# =============================================================================
+
+plt.figure(
+    figsize=(12, 6)
+)
+
+
+for success_value, label in [
+
+    (False, "Failed"),
+    (True, "Successful")
+
+]:
+
+    temp = early_summary[
+
+        early_summary["Success"]
+        == success_value
+    ]
+
+    plt.plot(
+
+        -temp["WeeksBeforeMinimum"],
+
+        temp["MeanAccelerationNormalized"],
+
+        marker="o",
+
+        label=label
+    )
+
+
+plt.axvline(
+    0,
+    linestyle="--",
+    alpha=0.6
+)
+
+
+plt.axhline(
+    0,
+    linestyle=":",
+    alpha=0.6
+)
+
+
+plt.xlabel(
+    "Weeks relative to eventual minimum"
+)
+
+plt.ylabel(
+    "Normalized acceleration"
+)
+
+plt.title(
+    "Early Recognition — Normalized Acceleration"
+)
+
+plt.legend()
+
+plt.grid(
+    alpha=0.25
+)
+
+plt.tight_layout()
+
+
+plt.savefig(
+
+    os.path.join(
+        OUTPUT_DIR,
+        "12_early_recognition_acceleration.png"
+    ),
+
+    dpi=160
+)
+
+
+plt.show()
+
+
+# =============================================================================
+# PLOT 13 — EARLY RECOGNITION: 10-WEEK VOLATILITY
+# =============================================================================
+
+plt.figure(
+    figsize=(12, 6)
+)
+
+
+for success_value, label in [
+
+    (False, "Failed"),
+    (True, "Successful")
+
+]:
+
+    temp = early_summary[
+
+        early_summary["Success"]
+        == success_value
+    ]
+
+    plt.plot(
+
+        -temp["WeeksBeforeMinimum"],
+
+        temp["MeanVolatility10w"],
+
+        marker="o",
+
+        label=label
+    )
+
+
+plt.axvline(
+    0,
+    linestyle="--",
+    alpha=0.6
+)
+
+
+plt.xlabel(
+    "Weeks relative to eventual minimum"
+)
+
+plt.ylabel(
+    "10-week rolling volatility"
+)
+
+plt.title(
+    "Early Recognition — 10-Week Volatility"
+)
+
+plt.legend()
+
+plt.grid(
+    alpha=0.25
+)
+
+plt.tight_layout()
+
+
+plt.savefig(
+
+    os.path.join(
+        OUTPUT_DIR,
+        "13_early_volatility_10w.png"
+    ),
+
+    dpi=160
+)
+
+
+plt.show()
+
+
+# =============================================================================
+# PLOT 14 — EARLY RECOGNITION: 20-WEEK VOLATILITY
+# =============================================================================
+
+plt.figure(
+    figsize=(12, 6)
+)
+
+
+for success_value, label in [
+
+    (False, "Failed"),
+    (True, "Successful")
+
+]:
+
+    temp = early_summary[
+
+        early_summary["Success"]
+        == success_value
+    ]
+
+    plt.plot(
+
+        -temp["WeeksBeforeMinimum"],
+
+        temp["MeanVolatility20w"],
+
+        marker="o",
+
+        label=label
+    )
+
+
+plt.axvline(
+    0,
+    linestyle="--",
+    alpha=0.6
+)
+
+
+plt.xlabel(
+    "Weeks relative to eventual minimum"
+)
+
+plt.ylabel(
+    "20-week rolling volatility"
+)
+
+plt.title(
+    "Early Recognition — 20-Week Volatility"
+)
+
+plt.legend()
+
+plt.grid(
+    alpha=0.25
+)
+
+plt.tight_layout()
+
+
+plt.savefig(
+
+    os.path.join(
+        OUTPUT_DIR,
+        "14_early_volatility_20w.png"
+    ),
+
+    dpi=160
+)
+
+
+plt.show()
+
+
+# =============================================================================
+# PLOT 15 — EARLY RECOGNITION: 52-WEEK VOLATILITY
+# =============================================================================
+
+plt.figure(
+    figsize=(12, 6)
+)
+
+
+for success_value, label in [
+
+    (False, "Failed"),
+    (True, "Successful")
+
+]:
+
+    temp = early_summary[
+
+        early_summary["Success"]
+        == success_value
+    ]
+
+    plt.plot(
+
+        -temp["WeeksBeforeMinimum"],
+
+        temp["MeanVolatility52w"],
+
+        marker="o",
+
+        label=label
+    )
+
+
+plt.axvline(
+    0,
+    linestyle="--",
+    alpha=0.6
+)
+
+
+plt.xlabel(
+    "Weeks relative to eventual minimum"
+)
+
+plt.ylabel(
+    "52-week rolling volatility"
+)
+
+plt.title(
+    "Early Recognition — 52-Week Volatility"
+)
+
+plt.legend()
+
+plt.grid(
+    alpha=0.25
+)
+
+plt.tight_layout()
+
+
+plt.savefig(
+
+    os.path.join(
+        OUTPUT_DIR,
+        "15_early_volatility_52w.png"
+    ),
+
+    dpi=160
+)
+
+
+plt.show()
+
+
+# =============================================================================
+# PLOT 16 — EARLY RECOGNITION: CHANGE IN 10-WEEK VOLATILITY
+# =============================================================================
+
+plt.figure(
+    figsize=(12, 6)
+)
+
+
+for success_value, label in [
+
+    (False, "Failed"),
+    (True, "Successful")
+
+]:
+
+    temp = early_summary[
+
+        early_summary["Success"]
+        == success_value
+    ]
+
+    plt.plot(
+
+        -temp["WeeksBeforeMinimum"],
+
+        temp["MeanVolatility10wChange"],
+
+        marker="o",
+
+        label=label
+    )
+
+
+plt.axvline(
+    0,
+    linestyle="--",
+    alpha=0.6
+)
+
+
+plt.axhline(
+    0,
+    linestyle=":",
+    alpha=0.6
+)
+
+
+plt.xlabel(
+    "Weeks relative to eventual minimum"
+)
+
+plt.ylabel(
+    "Change in 10-week volatility"
+)
+
+plt.title(
+    "Early Recognition — Change in 10-Week Volatility"
+)
+
+plt.legend()
+
+plt.grid(
+    alpha=0.25
+)
+
+plt.tight_layout()
+
+
+plt.savefig(
+
+    os.path.join(
+        OUTPUT_DIR,
+        "16_early_volatility_change_10w.png"
+    ),
+
+    dpi=160
+)
+
+
+plt.show()
+
+
+# =============================================================================
+# PLOT 17 — EARLY RECOGNITION: CHANGE IN 20-WEEK VOLATILITY
+# =============================================================================
+
+plt.figure(
+    figsize=(12, 6)
+)
+
+
+for success_value, label in [
+
+    (False, "Failed"),
+    (True, "Successful")
+
+]:
+
+    temp = early_summary[
+
+        early_summary["Success"]
+        == success_value
+    ]
+
+    plt.plot(
+
+        -temp["WeeksBeforeMinimum"],
+
+        temp["MeanVolatility20wChange"],
+
+        marker="o",
+
+        label=label
+    )
+
+
+plt.axvline(
+    0,
+    linestyle="--",
+    alpha=0.6
+)
+
+
+plt.axhline(
+    0,
+    linestyle=":",
+    alpha=0.6
+)
+
+
+plt.xlabel(
+    "Weeks relative to eventual minimum"
+)
+
+plt.ylabel(
+    "Change in 20-week volatility"
+)
+
+plt.title(
+    "Early Recognition — Change in 20-Week Volatility"
+)
+
+plt.legend()
+
+plt.grid(
+    alpha=0.25
+)
+
+plt.tight_layout()
+
+
+plt.savefig(
+
+    os.path.join(
+        OUTPUT_DIR,
+        "17_early_volatility_change_20w.png"
+    ),
+
+    dpi=160
+)
+
+
+plt.show()
+
+
+# =============================================================================
+# PLOT 18 — EARLY RECOGNITION: CHANGE IN 52-WEEK VOLATILITY
+# =============================================================================
+
+plt.figure(
+    figsize=(12, 6)
+)
+
+
+for success_value, label in [
+
+    (False, "Failed"),
+    (True, "Successful")
+
+]:
+
+    temp = early_summary[
+
+        early_summary["Success"]
+        == success_value
+    ]
+
+    plt.plot(
+
+        -temp["WeeksBeforeMinimum"],
+
+        temp["MeanVolatility52wChange"],
+
+        marker="o",
+
+        label=label
+    )
+
+
+plt.axvline(
+    0,
+    linestyle="--",
+    alpha=0.6
+)
+
+
+plt.axhline(
+    0,
+    linestyle=":",
+    alpha=0.6
+)
+
+
+plt.xlabel(
+    "Weeks relative to eventual minimum"
+)
+
+plt.ylabel(
+    "Change in 52-week volatility"
+)
+
+plt.title(
+    "Early Recognition — Change in 52-Week Volatility"
+)
+
+plt.legend()
+
+plt.grid(
+    alpha=0.25
+)
+
+plt.tight_layout()
+
+
+plt.savefig(
+
+    os.path.join(
+        OUTPUT_DIR,
+        "18_early_volatility_change_52w.png"
+    ),
+
+    dpi=160
+)
+
+
+plt.show()
+
+
+# =============================================================================
+# PLOT 19 — VOLATILITY ALIGNMENT
+# =============================================================================
+#
+# This is similar to the velocity/acceleration alignment plots, but uses the
+# actual aligned observations around the structural minimum.
+#
+# =============================================================================
+
+for column, ylabel, title, filename in [
+
+    (
+        "MeanVolatility10w",
+        "10-week volatility",
+        "10-Week Volatility Around Structural Minimum",
+        "19_volatility_10w_alignment.png"
+    ),
+
+    (
+        "MeanVolatility20w",
+        "20-week volatility",
+        "20-Week Volatility Around Structural Minimum",
+        "20_volatility_20w_alignment.png"
+    ),
+
+    (
+        "MeanVolatility52w",
+        "52-week volatility",
+        "52-Week Volatility Around Structural Minimum",
+        "21_volatility_52w_alignment.png"
+    )
+
+]:
+
+    plt.figure(
+        figsize=(12, 6)
+    )
+
+    for success_value, label in [
+
+        (False, "Failed"),
+        (True, "Successful")
+
+    ]:
+
+        temp = aligned_summary[
+
+            aligned_summary["Success"]
+            == success_value
+        ]
+
+        plt.plot(
+
+            temp["RelativeWeek"],
+
+            temp[column],
+
+            linewidth=2,
+
+            label=label
+        )
+
+    plt.axvline(
+        0,
+        linestyle="--",
+        alpha=0.6
+    )
+
+    plt.xlabel(
+        "Weeks relative to structural minimum"
+    )
+
+    plt.ylabel(
+        ylabel
+    )
+
+    plt.title(
+        title
+    )
+
+    plt.legend()
+
+    plt.grid(
+        alpha=0.25
+    )
+
+    plt.tight_layout()
+
+    plt.savefig(
+
+        os.path.join(
+            OUTPUT_DIR,
+            filename
+        ),
+
+        dpi=160
+    )
+
+    plt.show()
+
+
+# =============================================================================
+# PLOT 22 — VOLATILITY CHANGE ALIGNMENT
+# =============================================================================
+
+for column, ylabel, title, filename in [
+
+    (
+        "MeanVolatility10wChange",
+        "Change in 10-week volatility",
+        "Change in 10-Week Volatility Around Structural Minimum",
+        "22_volatility_change_10w_alignment.png"
+    ),
+
+    (
+        "MeanVolatility20wChange",
+        "Change in 20-week volatility",
+        "Change in 20-Week Volatility Around Structural Minimum",
+        "23_volatility_change_20w_alignment.png"
+    ),
+
+    (
+        "MeanVolatility52wChange",
+        "Change in 52-week volatility",
+        "Change in 52-Week Volatility Around Structural Minimum",
+        "24_volatility_change_52w_alignment.png"
+    )
+
+]:
+
+    plt.figure(
+        figsize=(12, 6)
+    )
+
+    for success_value, label in [
+
+        (False, "Failed"),
+        (True, "Successful")
+
+    ]:
+
+        temp = aligned_summary[
+
+            aligned_summary["Success"]
+            == success_value
+        ]
+
+        plt.plot(
+
+            temp["RelativeWeek"],
+
+            temp[column],
+
+            linewidth=2,
+
+            label=label
+        )
+
+    plt.axvline(
+        0,
+        linestyle="--",
+        alpha=0.6
+    )
+
+    plt.axhline(
+        0,
+        linestyle=":",
+        alpha=0.6
+    )
+
+    plt.xlabel(
+        "Weeks relative to structural minimum"
+    )
+
+    plt.ylabel(
+        ylabel
+    )
+
+    plt.title(
+        title
+    )
+
+    plt.legend()
+
+    plt.grid(
+        alpha=0.25
+    )
+
+    plt.tight_layout()
+
+    plt.savefig(
+
+        os.path.join(
+            OUTPUT_DIR,
+            filename
+        ),
+
+        dpi=160
+    )
+
+    plt.show()
+
+
+# =============================================================================
+# SAVE COMPLETE EVENT DATA
+# =============================================================================
+
+events.to_csv(
+
+    os.path.join(
+        OUTPUT_DIR,
+        "basin_events_complete.csv"
+    ),
+
+    index=False
+)
+
+
+# =============================================================================
+# SAVE VOLATILITY DATASET
+# =============================================================================
+#
+# This is useful for inspecting the volatility calculation independently.
+#
+# =============================================================================
+
+volatility_columns = [
+
+    "Ticker",
+    "Date",
+
+    "weekly_log_return",
+
+    "volatility_10w",
+    "volatility_20w",
+    "volatility_52w",
+
+    "volatility_10w_change",
+    "volatility_20w_change",
+    "volatility_52w_change",
+
+    "volatility_10w_pct_change",
+    "volatility_20w_pct_change",
+    "volatility_52w_pct_change"
+]
+
+
+df[
+    volatility_columns
+].to_csv(
+
+    os.path.join(
+        OUTPUT_DIR,
+        "causal_volatility_data.csv"
+    ),
+
+    index=False
+)
+
+
+# =============================================================================
+# FINAL SUMMARY
+# =============================================================================
+# =============================================================================
+# FINAL SUMMARY
+# =============================================================================
+
+print("\n")
+print("=" * 80)
+print("FINAL BASIN ANALYSIS SUMMARY")
+print("=" * 80)
+
+# ---------------------------------------------------------------------
+# Basic event counts
+# ---------------------------------------------------------------------
+
+print(
+    f"\nCandidate basins: "
+    f"{len(events):,}"
+)
+
+print(
+    f"Tickers represented: "
+    f"{events['Ticker'].nunique():,}"
+)
+
+successful = events["Success"]
+failed = ~events["Success"]
+
+print(
+    f"Successful basins (>= "
+    f"{PRIMARY_SUCCESS_THRESHOLD * 100:.0f}%): "
+    f"{successful.sum():,}"
+)
+
+print(
+    f"Success rate: "
+    f"{100 * successful.mean():.2f}%"
+)
+
+# ---------------------------------------------------------------------
+# Returns
+# ---------------------------------------------------------------------
+
+successful_mean_return = (
+    events.loc[
+        successful,
+        "FutureReturn"
+    ].mean()
+)
+
+failed_mean_return = (
+    events.loc[
+        failed,
+        "FutureReturn"
+    ].mean()
+)
+
+print(
+    f"\nSuccessful mean return: "
+    f"{successful_mean_return * 100:.2f}%"
+)
+
+print(
+    f"Failed mean return: "
+    f"{failed_mean_return * 100:.2f}%"
+)
+
+# ---------------------------------------------------------------------
+# Velocity
+# ---------------------------------------------------------------------
+
+successful_mean_velocity = (
+    events.loc[
+        successful,
+        "Velocity"
+    ].mean()
+)
+
+failed_mean_velocity = (
+    events.loc[
+        failed,
+        "Velocity"
+    ].mean()
+)
+
+print(
+    f"\nSuccessful mean velocity: "
+    f"{successful_mean_velocity:.6f}"
+)
+
+print(
+    f"Failed mean velocity: "
+    f"{failed_mean_velocity:.6f}"
+)
+
+# ---------------------------------------------------------------------
+# Normalized velocity
+# ---------------------------------------------------------------------
+
+successful_mean_velocity_norm = (
+    events.loc[
+        successful,
+        "VelocityNormalized"
+    ].mean()
+)
+
+failed_mean_velocity_norm = (
+    events.loc[
+        failed,
+        "VelocityNormalized"
+    ].mean()
+)
+
+print(
+    f"\nSuccessful normalized velocity: "
+    f"{successful_mean_velocity_norm:.3f}"
+)
+
+print(
+    f"Failed normalized velocity: "
+    f"{failed_mean_velocity_norm:.3f}"
+)
+
+# ---------------------------------------------------------------------
+# Acceleration
+# ---------------------------------------------------------------------
+
+successful_mean_acceleration = (
+    events.loc[
+        successful,
+        "Acceleration"
+    ].mean()
+)
+
+failed_mean_acceleration = (
+    events.loc[
+        failed,
+        "Acceleration"
+    ].mean()
+)
+
+print(
+    f"\nSuccessful mean acceleration: "
+    f"{successful_mean_acceleration:.6f}"
+)
+
+print(
+    f"Failed mean acceleration: "
+    f"{failed_mean_acceleration:.6f}"
+)
+
+# ---------------------------------------------------------------------
+# Normalized acceleration
+# ---------------------------------------------------------------------
+
+successful_mean_acceleration_norm = (
+    events.loc[
+        successful,
+        "AccelerationNormalized"
+    ].mean()
+)
+
+failed_mean_acceleration_norm = (
+    events.loc[
+        failed,
+        "AccelerationNormalized"
+    ].mean()
+)
+
+print(
+    f"\nSuccessful normalized acceleration: "
+    f"{successful_mean_acceleration_norm:.3f}"
+)
+
+print(
+    f"Failed normalized acceleration: "
+    f"{failed_mean_acceleration_norm:.3f}"
+)
+
+# ---------------------------------------------------------------------
+# Negative velocity
+# ---------------------------------------------------------------------
+
+successful_negative_velocity = (
+    100
+    * events.loc[
+        successful,
+        "VelocityNegative"
+    ].mean()
+)
+
+failed_negative_velocity = (
+    100
+    * events.loc[
+        failed,
+        "VelocityNegative"
+    ].mean()
+)
+
+print(
+    f"\nSuccessful negative velocity: "
+    f"{successful_negative_velocity:.2f}%"
+)
+
+print(
+    f"Failed negative velocity: "
+    f"{failed_negative_velocity:.2f}%"
+)
+
+# ---------------------------------------------------------------------
+# Positive acceleration
+# ---------------------------------------------------------------------
+
+successful_positive_acceleration = (
+    100
+    * events.loc[
+        successful,
+        "AccelerationPositive"
+    ].mean()
+)
+
+failed_positive_acceleration = (
+    100
+    * events.loc[
+        failed,
+        "AccelerationPositive"
+    ].mean()
+)
+
+print(
+    f"\nSuccessful positive acceleration: "
+    f"{successful_positive_acceleration:.2f}%"
+)
+
+print(
+    f"Failed positive acceleration: "
+    f"{failed_positive_acceleration:.2f}%"
+)
+
+# ---------------------------------------------------------------------
+# Velocity symmetry
+# ---------------------------------------------------------------------
+
+if not symmetry.empty:
+
+    successful_symmetry = (
+        symmetry.loc[
+            symmetry["Success"],
+            "VelocitySymmetry"
+        ].mean()
+    )
+
+    failed_symmetry = (
+        symmetry.loc[
+            ~symmetry["Success"],
+            "VelocitySymmetry"
+        ].mean()
+    )
+
+    print(
+        f"\nSuccessful mean velocity symmetry: "
+        f"{successful_symmetry:.3f}"
+    )
+
+    print(
+        f"Failed mean velocity symmetry: "
+        f"{failed_symmetry:.3f}"
+    )
+
+# =============================================================================
+# OUTPUT FILES
+# =============================================================================
+
+print("\n" + "=" * 80)
+print("OUTPUT FILES")
+print("=" * 80)
+
+for filename in sorted(
+    os.listdir(OUTPUT_DIR)
+):
+
+    print(
+        os.path.join(
+            OUTPUT_DIR,
+            filename
+        )
+    )
+
+print("\n" + "=" * 80)
+print("BASIN ANALYSIS COMPLETE")
+print("=" * 80)
